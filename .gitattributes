@@ -1,0 +1,9 @@
+*.psd filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/*.npz filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/*.inter filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/*.csv filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/biased_eval_train.npz filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/gowalla.inter filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/interactions_remapped.csv filter=lfs diff=lfs merge=lfs -text
+dataset/gowalla/** filter=lfs diff=lfs merge=lfs -text
+dataset/mind_small_train/** filter=lfs diff=lfs merge=lfs -text
