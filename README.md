@@ -28,7 +28,7 @@ PopSteer follows the common **5‑core sequential splits** used in the paper (Mo
 *This step fits a vanilla recommender model (in our experiments, SASRec was used) that later acts as the teacher for PopSteer.*
 
 ```bash
-python run.py   --train_recommender   --dataset "ml-1m"        # MovieLens‑1M (default)
+python run.py   --train_recommender   --dataset "ml-1m" 
 ```
 
 | Flag                  | Description                                                  | Default used in paper  |
@@ -72,6 +72,8 @@ python run.py   --analyze_neurons   -p "recbole/saved/SASRec_SAE-Apr-27-k32-64-m
 | ------------------- | --------------------------------------------------------------- | --------------------------- |
 | `--analyze_neurons` | Executes Section 3 pipeline (synthetic profiles + effect size). | –                           |
 | `-p`                | Path to the **trained SAE**.                                    | *(required)*                |
+
+
 **Outputs**: three CSV reports are saved to `datasets/{dataset}/` after the run:
 
 - `cohens_d.csv` – per‑neuron Cohen‑*d* values
