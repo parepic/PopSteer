@@ -6,15 +6,14 @@ A post‑hoc Sparse‑Autoencoder–based framework that **interprets and steers
 
 ## Installation
 
-# clone anonymous repo
+
+```bash
 git clone https://github.com/ANONYMOUS/PopSteer.git
 cd PopSteer
 
 # install Python dependencies
 pip install -r requirements.txt
 ```
-
-<!-- --- -->
 
 <!-- ## Dataset preparation
 
@@ -52,7 +51,7 @@ python run.py   --train_popsteer   -p "recbole/saved/SASRec-Apr-27-2025-ml-1m.pt
 | Flag                      | Description                                                | Default used in paper |
 | ------------------------- | ---------------------------------------------------------- | --------------------- |
 | `--train_popsteer`        | Triggers SAE training.                                     | –                     |
-| `-p`, `--pretrained_path` | Path to the **base recommender checkpoint**.                    | *(required)*          |
+| `--pretrained_path` | Path to the **base recommender checkpoint**.                    | *(required)*          |
 | `--top_k`                 | Sparsity *K*: number of hidden activations kept per input. | **32**                |
 | `--scale`                 | Scale factor *s*: hidden‑dim = *s* × input‑dim.            | **64**                |
 
