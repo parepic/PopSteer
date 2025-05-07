@@ -403,11 +403,11 @@ class SASRec(SequentialRecommender):
         # save_batch_activations(seq_output, 64)
         test_items_emb = self.item_embedding.weight
         scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
-        scores[:, 0] =  float("-inf")
+        # scores[:, 0] =  float("-inf")
         # print(scores[:, 0:20])
         # scores = torch.tensor(self.simple_reranker(scores, param1)).to(self.device)
-        scores = self.FAIR(scores, p=param1, alpha=param2).to(self.device)
-        scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=param1, lambda_=param2)
+        # scores = self.FAIR(scores, p=param1, alpha=param2).to(self.device)
+        # scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=param1, lambda_=param2)
         # scores = self.p_mmf_re_ranking(scoresss=scores, lambd=param1, eta=param2)
         # scores = self.random_reranker(scores=scores, top_k=param1)
         # scores = fair_rerank_exact(torch.sigmoid(scores), alpha=0.1)

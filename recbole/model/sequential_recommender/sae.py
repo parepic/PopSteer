@@ -184,16 +184,13 @@ class SAE(nn.Module):
      
 					# Update the recommendations for this sequence
 					data["recommendations"].append(topk_indices.tolist())
+     
 
 
-
-
-
-	def dampen_neurons(self, pre_acts):
-		if self.N is None:
+	def dampen_neurons(self, pre_acts, dataset=None):
+		if self.N is None or self.N==0:
 			return pre_acts
-		print(" why why")
-		pop_neurons, unpop_neurons = utils.get_extreme_correlations(self.corr_file, self.unpopular_only)
+		pop_neurons, unpop_neurons = utils.get_extreme_correlations(self.corr_file, self.unpopular_only, dataset=dataset)
   
 		# Combine both groups into one list while labeling the group type.
 		# 'unpop' neurons are those with higher activations for unpopular inputs (to be reinforced),
@@ -205,9 +202,9 @@ class SAE(nn.Module):
 		combined_sorted = sorted(combined_neurons, key=lambda x: abs(x[1]), reverse=True)
 		top_neurons = combined_sorted[:int(self.N)]
 		# Load the corresponding statistics files.
-		stats_unpop = pd.read_csv(r"./dataset/lastfm/row_stats_popular.csv")
-		stats_pop = pd.read_csv(r"./dataset/lastfm/row_stats_unpopular.csv")
-
+		stats_unpop = pd.read_csv(rf"./dataset/{dataset}/row_stats_popular.csv")
+		stats_pop = pd.read_csv(rf"./dataset/{dataset}/row_stats_unpopular.csv")
+  
 		# Create tensors of the absolute Cohen's d values for the selected neurons.
 		abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons], device=pre_acts.device)
 		min_cohen = min(abs(c) for _, c, _ in combined_neurons)
@@ -280,13 +277,13 @@ class SAE(nn.Module):
      
      
      
-	def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None):
+	def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None, dataset=None):
 		sae_in = x - self.b_dec
 		pre_acts = self.encoder(sae_in)
 		self.last_activations = pre_acts
 		if self.corr_file:
-			# pre_acts = self.dampen_neurons(pre_acts)
-			pre_acts = self.add_noise(pre_acts, std=self.beta)
+			pre_acts = self.dampen_neurons(pre_acts, dataset=dataset)
+			# pre_acts = self.add_noise(pre_acts, std=self.beta)
 		pre_acts = nn.functional.relu(pre_acts)   
 		z = self.topk_activation(pre_acts, sequences, save_result=False)
 

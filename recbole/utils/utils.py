@@ -624,8 +624,12 @@ def fetch_user_popularity_score(user_ids, sequences):
 
 
 
-def save_batch_activations(bulk_data, neuron_count):
-    file_path = r"./dataset/ml-1m/neuron_activations_sasrecsae_final_unpop.h5"
+def save_batch_activations(bulk_data, neuron_count, dataset, popular):
+    if popular:
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
+    if popular == False:
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_unpop.h5"
+        
     bulk_data = bulk_data.permute(1, 0).detach().cpu().numpy()  # [neuron_count, batch_size]
     real_batch_size = bulk_data.shape[1]  # Might be < batch_size in final step
 
@@ -931,29 +935,9 @@ def plot_binned_bar_chart(csv_file):
     plt.show()
 
 
-def make_items_unpopular(item_seq_len):
-    # file_path = r"./dataset/ml-1m/neuron_activations_unpopular.h5"
-    # with h5py.File(file_path, 'r') as f:
+def make_items_unpopular(item_seq_len, dataset):
 
-    #     print("Datasets in file:")
-    #     for name in f:
-    #         print(name)
-
-    #     # Replace 'your_dataset_name' with the actual dataset name
-    #     dataset_name = 'dataset'  # adjust this after printing dataset names
-    #     data = f[dataset_name]
-
-    #     print(f"Shape of dataset: {data.shape}")  # Should print (4096, X)
-
-    #     # Convert to NumPy array (if not too big)
-    #     array = np.array(data)
-
-    #     # Loop through columns
-    #     for i in range(array.shape[1]):
-    #         print(f"Column {i}:")
-    #         print(array[:, i])
-        
-    item_labels = pd.read_csv("./dataset/ml-1m/item_popularity_labels_with_titles.csv")
+    item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels_with_titles.csv")
     
     # Filter rows where popularity_label == -1
     filtered_items = item_labels[item_labels['popularity_label'] == -1]
@@ -981,8 +965,8 @@ def make_items_unpopular(item_seq_len):
 
 
 
-def make_items_popular(item_seq_len):
-    item_labels = pd.read_csv("./dataset/ml-1m/item_popularity_labels_with_titles.csv")
+def make_items_popular(item_seq_len, dataset):
+    item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels_with_titles.csv")
     
     # Filter rows where popularity_label == -1
     filtered_items = item_labels[item_labels['popularity_label'] == 1]
@@ -1010,9 +994,12 @@ def make_items_popular(item_seq_len):
 
 
 
-def save_mean_SD():
+def save_mean_SD(dataset, popular=None):
     # Load your .h5 file
-    file_path = r"./dataset/ml-1m/neuron_activations_sasrecsae_final_unpop.h5"
+    if popular == True:  
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
+    elif popular == False:  
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_unpop.h5"
     dataset_name = 'dataset'  # Replace with actual dataset name inside the h5 file
 
     # Load the real indices from the filtered CSV
@@ -1022,9 +1009,6 @@ def save_mean_SD():
     with h5py.File(file_path, 'r') as f:
         data = f[dataset_name][()]  # Reads full dataset into memory
 
-    print("Data shape:", data.shape)  # Should be (4096, X)
-
-    print(data[:, 0])
     # Compute mean and standard deviation for each row
     means = np.mean(data, axis=1)
     stds = np.std(data, axis=1)
@@ -1034,19 +1018,20 @@ def save_mean_SD():
         'std': stds,
     })
 
-    # Save to CSV with real indices
-    output_csv_path = r"./dataset/ml-1m/row_stats_unpopular.csv"
+    if popular == True:  
+        output_csv_path = rf"./dataset/{dataset}/row_stats_popular.csv"
+    if popular == False:  
+        output_csv_path = rf"./dataset/{dataset}/row_stats_unpopular.csv"
     df.to_csv(output_csv_path)
-
     print(f"Row-wise mean and std saved to {output_csv_path}")
     
     
 
 
 
-def save_cohens_d():
-    df1 = pd.read_csv(r"./dataset/ml-1m/row_stats_popular.csv", index_col=0)
-    df2 = pd.read_csv(r"./dataset/ml-1m/row_stats_unpopular.csv", index_col=0)
+def save_cohens_d(dataset):
+    df1 = pd.read_csv(rf"./dataset/{dataset}/row_stats_popular.csv", index_col=0)
+    df2 = pd.read_csv(rf"./dataset/{dataset}/row_stats_unpopular.csv", index_col=0)
 
     # Compute pooled standard deviation
     s_pooled = np.sqrt((df1['std']**2 + df2['std']**2) / 2)
@@ -1058,7 +1043,7 @@ def save_cohens_d():
     df_result = pd.DataFrame({'cohen_d': cohen_d})
 
     # Save to CSV with index column
-    df_result.to_csv(r"./dataset/ml-1m/cohens_d.csv")
+    df_result.to_csv(rf"./dataset/{dataset}/cohens_d.csv")
 
     print("Cohen's d values saved to cohens_d.csv")
     
@@ -1149,7 +1134,7 @@ def build_popularity_tensor(num_items=3706):
             popularity_tensor[index] = row['popularity_label']
     return 
 
-def get_extreme_correlations(file_name: str, unpopular_only: bool):
+def get_extreme_correlations(file_name: str, unpopular_only: bool, dataset=None):
     """
     Retrieves all positive and all negative correlation indexes and their values.
 
@@ -1165,7 +1150,7 @@ def get_extreme_correlations(file_name: str, unpopular_only: bool):
     
 
     # 1) load
-    df = pd.read_csv(f"./dataset/lastfm/{file_name}")
+    df = pd.read_csv(rf"./dataset/{dataset}/{file_name}")
     # indices = pd.read_csv(r"./dataset/ml-1m/nonzero_activations_sasrecsae_k48-32.csv")["index"].tolist()
     # # 2) if they passed a subset of row positions, slice with .iloc
     # if indices is not None:
@@ -1314,7 +1299,7 @@ def skew_sample(interaction, num_samples):
     return sampled_indices
 
 
-def get_popularity_label_indices(id_tensor):
+def get_popularity_label_indices(id_tensor, dataset=None):
     """
     Given a 1D tensor of item IDs, returns a 1D tensor of the same shape 
     that indicates the popularity label for each item.
@@ -1327,7 +1312,7 @@ def get_popularity_label_indices(id_tensor):
                       each item in id_tensor.
     """
     # Read the CSV that maps item IDs to popularity labels.
-    df = pd.read_csv(r"./dataset/lastfm/item_popularity_labels_with_titles.csv", encoding='latin1')
+    df = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels_with_titles.csv", encoding='latin1')
     
     # Create a mapping from item ID to popularity label.
     id_to_label = dict(zip(df['item_id:token'], df['popularity_label']))

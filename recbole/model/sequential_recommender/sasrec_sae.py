@@ -38,11 +38,11 @@ class SASRec_SAE(SASRec):
         else:
             raise ValueError(f"Invalid mode {mode} set for SASRec_SAE")
 
-    def forward(self, item_seq, item_seq_len, mode=None, scores=None):
+    def forward(self, item_seq, item_seq_len, mode=None, scores=None, dataset=None):
         # Use SASRec to process the sequence
         sasrec_output = super().forward(item_seq, item_seq_len)  # Final hidden states from SASRec
         
-        sae_output = self.sae_module(sasrec_output, train_mode=(mode=='train'), epoch=scores)
+        sae_output = self.sae_module(sasrec_output, train_mode=(mode=='train'), epoch=scores, dataset=dataset)
 
 
         return sae_output
@@ -87,21 +87,20 @@ class SASRec_SAE(SASRec):
 
 
 
-    def full_sort_predict(self, interaction):
+    def full_sort_predict(self, interaction, dataset=None, popular=None):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
-        # item_seq = make_items_unpopular(item_seq).to(self.device)
-        seq_output = self.forward(item_seq, item_seq_len, mode='eval')
+        if popular == True:
+            item_seq = make_items_popular(item_seq, dataset).to(self.device)
+        elif popular == False:
+            item_seq = make_items_unpopular(item_seq, dataset).to(self.device)
+        seq_output = self.forward(item_seq, item_seq_len, mode='eval', dataset=dataset)
         test_items_emb = self.item_embedding.weight
         scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
         top_recs = torch.argsort(scores, dim=1, descending=True)[:, :10]
         scores[:, 0] =  float("-inf")
-        # if(self.mode == "test"):
-        #     # user_ids = interaction['user_id']
-        # nonzero_idxs = pd.read_csv(r"./dataset/ml-1m/nonzero_activations_sasrecsae_k48-32.csv")["index"].tolist()
-        # save_batch_activations(self.sae_module.last_activations, self.sae_module.hidden_dim) 
-        # self.sae_module.update_highest_activations(item_seq, top_recs, None)
-
+        if popular is not None:
+            save_batch_activations(self.sae_module.last_activations, self.sae_module.hidden_dim, dataset, popular) 
         if hasattr(self.sae_module, 'auxk_loss'):
             self.total_loss += (self.sae_module.fvu + self.sae_module.auxk_loss / 32)
         

@@ -148,11 +148,13 @@ class Trainer(AbstractTrainer):
         self.checkpoint_dir = config["checkpoint_dir"]
         self.enable_amp = config["enable_amp"]
         self.enable_scaler = torch.cuda.is_available() and config["enable_scaler"]
+        self.dataset = config["dataset"]
+        # print(" Dataset is this: ", config["dataset"])
         ensure_dir(self.checkpoint_dir)
         saved_model_file = "{}-{}.pth".format(self.config["model"], get_local_time())
         self.saved_model_file = os.path.join(self.checkpoint_dir, saved_model_file)
         self.weight_decay = config["weight_decay"]
-
+        
         self.start_epoch = 0
         self.cur_step = 0
         self.best_valid_score = -np.inf if self.valid_metric_bigger else np.inf
@@ -438,7 +440,6 @@ class Trainer(AbstractTrainer):
         saved=True,
         show_progress=False,
         callback_fn=None,
-        model_file=None
     ):
         r"""Train the model based on the train data and the valid data.
 
@@ -614,7 +615,7 @@ class Trainer(AbstractTrainer):
 
 
     @torch.no_grad()
-    def save_neuron_activations2(
+    def analyze_neurons(
         self, data, model_file=None, show_progress=True, eval_data=True, sae=True
     ):
         r"""Evaluate the model based on the eval data.
@@ -652,7 +653,7 @@ class Trainer(AbstractTrainer):
             else data
         )
         now = 0
-        times = 1900
+        times = 20
         for batch_idx, batched_data in enumerate(iter_data):
             if now > times:
                 break
@@ -667,8 +668,9 @@ class Trainer(AbstractTrainer):
             with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
                 if sae:
                     self.model.set_sae_mode("test")
-                self.model.full_sort_predict(interaction)
-        
+                self.model.full_sort_predict(interaction, dataset=self.dataset, popular=True)
+                self.model.full_sort_predict(interaction, dataset=self.dataset, popular=False)
+
         ending = '_eval' if eval_data else ''
         # self.model.sae_module.save_highest_activations()
     
@@ -872,7 +874,7 @@ class Trainer(AbstractTrainer):
             if type(self.model) is SASRec:
                 scores = self.model.full_sort_predict(interaction.to(self.device), param1=param1, param2=param2)
             else:
-                scores = self.model.full_sort_predict(interaction.to(self.device))
+                scores = self.model.full_sort_predict(interaction.to(self.device), dataset=self.dataset)
                 
         except NotImplementedError:
             inter_len = len(interaction)
@@ -970,7 +972,7 @@ class Trainer(AbstractTrainer):
         for batch_idx, batched_data in enumerate(iter_data):
             num_sample += len(batched_data)
             interaction, scores, positive_u, positive_i = eval_func(batched_data, param1=N, param2=beta)
-            labels.extend(get_popularity_label_indices(positive_i))
+            labels.extend(get_popularity_label_indices(positive_i, dataset=self.dataset))
             if self.gpu_available and show_progress:
                 iter_data.set_postfix_str(
                     set_color("GPU RAM: " + get_gpu_usage(self.device), "yellow")
@@ -985,7 +987,7 @@ class Trainer(AbstractTrainer):
         self.eval_collector.model_collect(self.model)
         struct = self.eval_collector.get_data_struct()
         result = self.evaluator.evaluate(struct, chunks=labels)
-        fairness_dict = self.evaluator.evaluate_fairness(self.model.recommendation_count)
+        fairness_dict = self.evaluator.evaluate_fairness(self.model.recommendation_count, dataset=self.dataset)
         self.model.recommendation_count = np.zeros(self.model.n_items)
         if not self.config["single_spec"]:
             result = self._map_reduce(result, num_sample)

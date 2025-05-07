@@ -118,9 +118,7 @@ def run_recbole(
         config_file_list=config_file_list,
         config_dict=config_dict,
     )
-    
-    print("duzelib de ", config["data_path"])
-    
+        
     init_seed(config["seed"], config["reproducibility"])
     # logger initialization
     init_logger(config)
@@ -149,7 +147,7 @@ def run_recbole(
 
     # model training
     best_valid_score, best_valid_result = trainer.fit(
-        train_data, valid_data, saved=saved, show_progress=config["show_progress"], model_file=r"./recbole/saved/SASRec-Apr-12-2025.pth"
+        train_data, valid_data, saved=saved, show_progress=config["show_progress"]
     )
 
     # model evaluation
@@ -233,7 +231,7 @@ def objective_function(config_dict=None, config_file_list=None, saved=True):
     }
 
 
-def load_data_and_model(model_file, device='cuda', sae=True):
+def load_data_and_model(model_file, device='cuda', sae=False, k=None, scale_size=None):
     r"""Load filtered dataset, split dataloaders and saved model.
 
     Args:
@@ -249,14 +247,25 @@ def load_data_and_model(model_file, device='cuda', sae=True):
             - test_data (AbstractDataLoader): The dataloader for testing.
     """
     import torch
+    
+        # Print each config entry with a message
+
+    
+    
+    
     checkpoint = torch.load(model_file, map_location=torch.device(device))
     config = checkpoint["config"]
-    config["sae_k"] = 32
-    config["sae_scale_size"] = 64
     config["sae_lr"] = 1e-3
 
     config["valid_metric"] = 'NDCG@10'
     config["eval_batch_size"] = 6040
+    
+    # print(f"Valid metric is: {config['valid_metric']}")
+    # print(f"Model selected: {config['model']}")
+    # print(f"SAE top-k (sae_k) set to: {config['sae_k']}")
+    # print(f"SAE scale size set to: {config['sae_scale_size']}")
+    # print(f"Stopping step threshold: {config['stopping_step']}")
+    
     if(device == 'cpu'):
         config.internal_config_dict['use_gpu'] = False
         config.internal_config_dict['gpu_id'] = '-1'
@@ -264,8 +273,12 @@ def load_data_and_model(model_file, device='cuda', sae=True):
         config.final_config_dict['gpu_id'] = '-1'
         config['device'] = 'cpu'
     if sae:
+        
         config['valid_metric'] = 'loss'
         config['model'] = 'SASRec_SAE'
+        config["sae_k"] = k
+        config["sae_scale_size"] = scale_size
+
         config['stopping_step'] = 20
 
     init_seed(config["seed"], config["reproducibility"])

@@ -1154,9 +1154,6 @@ if __name__ == "__main__":
     
     
     parser.add_argument("--model", "-m", type=str, default="BPR", help="name of models")
-    parser.add_argument(
-        "--dataset", "-d", type=str, default="ml-1m", help="name of datasets"
-    )
     parser.add_argument("--config_files", type=str, default=None, help="config files")
     parser.add_argument(
         "--nproc", type=int, default=1, help="the number of process in this group"
@@ -1177,16 +1174,49 @@ if __name__ == "__main__":
         help="the global rank offset of this group",
     )
     
-    # Add arguments
-    parser.add_argument('--path', '-p', type=str, required=False, help="Path to the dataset or configuration file (e.g., 'blablabla').")
-    parser.add_argument('--train', action='store_true', help="Flag to indicate whether to train the model.")
-    parser.add_argument('--test', action='store_true', help="Flag to indicate whether to test the model.")
-    parser.add_argument('--eval_data', action='store_true', help="Flag to indicate whether to test the model.")
-    parser.add_argument('--corr_file', '-c', type=str, required=False, help="Name of csv file containing correlation values")
-    parser.add_argument('--neuron_count', '-n', type=int, required=False, help="Number of neurons to dampen")
-    parser.add_argument('--damp_percent', '-dp', type=float, required=False, help="Damping percentage for popular/unpopular neurons")
-    parser.add_argument('--unpopular_only', '-u', action='store_true', help="Flag to indicate whether to dampen only unpopular neurons.")
-    parser.add_argument('--save_neurons', '-s', action='store_true', help="Flag to indicate whether to save SAE activations.")
+    # ------------------------------------------------------------------
+    # Paths & dataset selection
+    # ------------------------------------------------------------------
+    parser.add_argument('--path', '-p', type=str, default=None,
+                        help="Model path, not required for training SASRec")
+
+    parser.add_argument('--dataset', '-d', type=str, default='ml-1m',
+                        choices=['ml-1m', 'lastfm', 'gowalla', 'amazon-book', 'custom'],
+                        help="Name of the dataset to use (e.g. 'ml-1m', 'lastfm').")
+
+    # ------------------------------------------------------------------
+    # Hyper‑parameters (see paper §5.2)
+    # ------------------------------------------------------------------
+    parser.add_argument('--alpha', '-a', type=float, default=1.5,
+                        help="Steering strength \u03B1 controlling neuron adjustment in Eq. 3 of the paper.")
+
+    parser.add_argument('--num_neurons', '-N', type=int, default=4096,
+                        help="Hidden dimension N of the Sparse Autoencoder (SAE).")
+
+    parser.add_argument('--top_k', '-k', type=int, default=32,
+                        help="Sparsity parameter K: keep only the top‑k activations per input in the SAE (Eq. 1).")
+
+    parser.add_argument('--scale', '--scale_size', type=int, default=8,
+                        dest='scale',
+                        help="Scale factor s controlling the SAE hidden size relative to the input (s × d).")
+
+    # ------------------------------------------------------------------
+    # Training / analysis switches
+    # ------------------------------------------------------------------
+    parser.add_argument('--train_recommender', action='store_true',
+                        help="Train or fine‑tune the SASRec backbone model only.")
+
+    parser.add_argument('--train_popsteer', action='store_true',
+                        help="Train the Sparse Autoencoder and apply PopSteer neuron steering.")
+
+    parser.add_argument('--analyze_neurons', action='store_true',
+                        help="Run neuron‑level analysis (compute Cohen's d, identify biased neurons, etc.).")
+    
+    parser.add_argument('--test_popsteer', action='store_true',
+                    help="Test Popsteer.")
+    
+    parser.add_argument('--valid_set', action='store_true',
+                    help="including this flag will test on valid data, otherwise test data")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -1198,22 +1228,22 @@ if __name__ == "__main__":
         device = 'cuda'
         
     
-    if(args.model == "SASRec" and args.train):
+    if(args.train_recommender):
         config_file_list = (
                 args.config_files.strip().split(" ") if args.config_files else None
             )
         parameter_dict = {
             'train_neg_sample_args': None,
+            'dataset':  args.dataset
         }   
 
         # config_file_list = [r'./recbole/recbole/properties/overall.yaml',
         #             r'./recbole/recbole/properties/model/SASRec.yaml',
         #             r'./recbole/recbole/properties/dataset/ml-1m.yaml'
         #             ]
-        
         run(
             'SASRec',
-            'ml-1m',
+            args.dataset,
             # config_file_list=config_file_list,
             config_dict=parameter_dict,
             nproc=args.nproc,
@@ -1222,6 +1252,60 @@ if __name__ == "__main__":
             port=args.port,
             group_offset=args.group_offset,
         )
+    if args.train_popsteer:
+        config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
+            model_file=args.path, sae=True, device=device, scale_size=args.scale, k=args.top_k
+        )  
+        trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
+        trainer.fit_SAE(config, 
+            args.path,
+            train_data,
+            dataset,
+            valid_data=valid_data,
+            show_progress=True,
+            )
+    
+    if args.analyze_neurons:
+        config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
+            model_file=args.path, device=device,
+        )  
+        
+        trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
+        trainer.analyze_neurons(train_data,  model_file=args.path, eval_data=False, sae=False)
+        save_mean_SD(config["dataset"], popular=True)
+        save_mean_SD(config["dataset"], popular=False)
+        save_cohens_d(config["dataset"])
+    
+    if args.test_popsteer: 
+        config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
+            model_file=args.path, device=device,
+        )  
+        trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
+        # data = test_data if args.valid_set else test_data
+        test_result = trainer.evaluate(
+            test_data, model_file=args.path, show_progress=config["show_progress"], N=args.num_neurons, beta=args.alpha
+        )      
+        keys = [
+            'recall@10',
+            'ndcg@10',
+            'hit@10',
+            'ARP@10',
+            'Deep_LT_coverage@10',
+            'Gini_coef@10'
+        ]
+
+        # compute column width for alignment
+        max_key_len = max(len(k) for k in keys)
+
+        # print header
+        print(f"{'Metric':<{max_key_len}} | Value")
+        print(f"{'-'*max_key_len}-|-------")
+
+        # print each metric with its dynamic value
+        for key in keys:
+            value = test_result[key]             # get value from your OrderedDict
+            print(f"{key:<{max_key_len}} | {value:>7.4f}")
+
     else:
         # config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
         #     model_file=args.path, sae=(args.model=='SASRec_SAE'), device=device

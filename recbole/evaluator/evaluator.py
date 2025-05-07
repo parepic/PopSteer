@@ -44,7 +44,7 @@ class Evaluator(object):
     
     
     
-    def evaluate_fairness(self, recommendation_count):
+    def evaluate_fairness(self, recommendation_count, dataset=None):
         """
         Evaluate Long Tail Coverage, Coverage, Gini Coefficient, and Average Recommendation Popularity (ARP),
         excluding item ID 0 (unused index)."/da
@@ -59,7 +59,7 @@ class Evaluator(object):
         import numpy as np
         import matplotlib.pyplot as plt
 
-        file = r'./dataset/lastfm/item_popularity_labels_with_titles.csv'
+        file = rf'./dataset/{dataset}/item_popularity_labels_with_titles.csv'
         # Load item metadata
         item_data = pd.read_csv(file)
 
