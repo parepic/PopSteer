@@ -976,7 +976,6 @@ class Trainer(AbstractTrainer):
                 scores, interaction, positive_u, positive_i
             )
         time = 0 if len(self.epoch_time)==0 else sum(self.epoch_time)/len(self.epoch_time)
-        print("Train time for epoch: ", time)
         if isinstance(self.model, SASRec_SAE):
             print("Number of alive latents ", torch.count_nonzero(self.model.sae_module.activation_count))
         self.eval_collector.model_collect(self.model)

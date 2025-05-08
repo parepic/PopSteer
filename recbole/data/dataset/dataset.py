@@ -2208,7 +2208,6 @@ class Dataset(torch.utils.data.Dataset):
         
         # Remap item_id using the provided mapping
         if 'item_id:token' in df.columns:
-            print(self.field2token_id.keys())
             df['item_id:token'] = df['item_id:token'].astype(str).map(self.field2token_id['item_id'])
             int_df['item_id:token'] = int_df['item_id:token'].astype(str).map(self.field2token_id['item_id'])
             int_df['user_id:token'] = int_df['user_id:token'].astype(str).map(self.field2token_id['user_id'])

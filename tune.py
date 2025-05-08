@@ -1,22 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import argparse
-import torch
 import time
-from scipy.stats import pearsonr
-import h5py
-from itertools import combinations
-from multiprocessing import Pool, cpu_count
-
-
-
 import pandas as pd
-from IPython.display import display
 import itertools
 
 
 
-from recbole.quick_start import run_recbole, load_data_and_model, run
+from recbole.quick_start import load_data_and_model
 from recbole.utils import (
     get_trainer
 )
