@@ -511,49 +511,6 @@ class SAE(nn.Module):
 		# Save to CSV
 		df.to_csv(filename, index=False)
   
-  
-		# corr_pop = utils.calculate_pearson_correlation(r"./dataset/ml-1m/user_scores_pop.h5", r"./dataset/ml-1m/correlations_pop.csv")
-		# corr_unpop = utils.calculate_pearson_correlation(r"./dataset/ml-1m/user_scores_unpop.h5", r"./dataset/ml-1m/correlations_unpop.csv")
-		# file_path = r'./dataset/ml-1m/item_popularity_labels_with_titles.csv'
-
-		# data_item = pd.read_csv(file_path)  # Try 'latin1', change to 'cp1252' if needed
-		# with open(filename, "w", encoding="utf-8") as f:
-		# 	for neuron, data in self.highest_activations.items():
-		# 		f.write(f"Neuron {neuron}:\n\n\n")
-		# 		# f.write(f"Popularity Correlation:{corr_pop[neuron]}\n")
-		# 		# f.write(f"Unpopularity Correlation:{corr_unpop[neuron]}\n")
-		# 		for value, item_id, item, recommendations_ids, recommendations in zip(data["values"], data["items"], utils.get_item_titles(data["items"], data_item), data["recommendations"], utils.get_item_titles(data["recommendations"], data_item)):
-		# 			if item_id.item() != 0:
-		# 				dataa = utils.get_movie_info((item_id.item()))
-		# 				f.write(f"  Activation: {value}\n")
-		# 				f.write(f"  Item id: {str(item_id.item())}\n")
-		# 				f.write(f"  Item: {item}\n")
-		# 				if data is not None:
-		# 					release_year, adult, genre_ids, original_language, overview = dataa
-		# 					f.write(f"  Release Year: {release_year}\n")
-		# 					f.write(f"  Adult: {adult}\n")
-		# 					f.write(f"  Genre IDs: {genre_ids}\n")
-		# 					f.write(f"  Original Language: {original_language}\n")
-		# 					f.write(f"  Overview: {overview}\n")
-		# 				else:
-		# 					f.write(f"  Movie Info: Not found for item_id {item_id}\n")
-		# 				f.write("\n")
-		# 		for value, item_id, item in zip(data["low_values"], data["low_items"], utils.get_item_titles(data["low_items"], data_item)):
-		# 			if item_id.item() != 0:
-		# 				dataa = utils.get_movie_info((item_id.item()))
-		# 				f.write(f"  Activation: {value}\n\n")
-		# 				f.write(f"  Item id: {str(item_id.item())}\n")
-		# 				f.write(f"  Item : {item}\n")
-		# 				if data is not None:
-		# 					release_year, adult, genre_ids, original_language, overview = dataa
-		# 					f.write(f"  Release Year: {release_year}\n")
-		# 					f.write(f"  Adult: {adult}\n")
-		# 					f.write(f"  Genre IDs: {genre_ids}\n")
-		# 					f.write(f"  Original Language: {original_language}\n")
-		# 					f.write(f"  Overview: {overview}\n")
-		# 				else:
-		# 					f.write(f"  Movie Info: Not found for item_id {item_id}\n")
-		# 			f.write("\n")
 
 
 	def save_highest_activations2(self, filename=r"./dataset/lastfm/neuron_activations_unpopular.csv"):		

@@ -1694,62 +1694,6 @@ class Dataset(torch.utils.data.Dataset):
 
 
 
-    def _split_index_by_leave_n_out(self, grouped_index, leave_one_num, n_each):
-        """Split indexes by a leave-one-out strategy with multiple hold-out items.
-
-        Instead of adding a single last interaction per hold-out set,
-        this function will add up to 5 interactions for each hold-out group.
-        
-        For example, if leave_one_num equals 2 (for validation and test)
-        and there are enough items, the last 10 interactions are held out:
-        - Training: all interactions before the last 10.
-        - Validation: the next 5 interactions.
-        - Test: the final 5 interactions.
-        
-        If there are not enough interactions, the function holds out as many as
-        possible while leaving at least one item for training.
-
-        Args:
-            grouped_index (iterable): A grouped index (e.g. the dict values object)
-                where each element is an iterable of item IDs (assumed to be sorted by time).
-            leave_one_num (int): Number of hold-out groups (e.g. 2 for validation and test).
-
-        Returns:
-            list: A list of lists. The first element is the training set and the remaining
-                elements are the hold-out sets (in order, e.g. validation then test).
-        """
-        # Prepare a list of lists for training and each hold-out group.
-        next_index = [[] for _ in range(leave_one_num + 1)]
-        
-        for idx in grouped_index:
-            # Convert each group (e.g. a user's interactions) to a list.
-            index = list(idx)
-            tot_cnt = len(index)
-            # Calculate the ideal total to hold out.
-            desired_holdout = n_each * leave_one_num
-            # Ensure we always leave at least one for training.
-            legal_holdout = min(desired_holdout, tot_cnt - 1)
-            # The training part: all interactions before the holdout portion.
-            pr = tot_cnt - legal_holdout
-            next_index[0].extend(index[:pr])
-            
-            # Now split the holdout portion among the leave_one_num groups.
-            # Distribute legal_holdout items as evenly as possible.
-            base = legal_holdout // leave_one_num
-            remainder = legal_holdout % leave_one_num
-            
-            current = pr
-            for i in range(leave_one_num):
-                # Each group gets the base number; first 'remainder' groups get one extra.
-                group_size = base + (1 if i < remainder else 0)
-                # Append the slice to group (i+1).
-                next_index[i + 1].extend(index[current: current + group_size])
-                current += group_size
-
-        return next_index
-
-
-
     def leave_one_out(self, group_by, leave_one_mode):
         """Split interaction records by leave one out strategy.
 
@@ -1771,8 +1715,8 @@ class Dataset(torch.utils.data.Dataset):
             self.inter_feat[group_by].numpy()
         )
         if leave_one_mode == "valid_and_test":
-            next_index = self._split_index_by_leave_n_out(
-                grouped_inter_feat_index, leave_one_num=2, n_each=1
+            next_index = self._split_index_by_leave_one_out(
+                grouped_inter_feat_index, leave_one_num=2
             )
         elif leave_one_mode == "valid_only":
             next_index = self._split_index_by_leave_one_out(

@@ -45,9 +45,6 @@ from recbole.utils import (
     make_items_popular,
     save_batch_activations,
     get_extreme_correlations,
-    skew_sample,
-    calculate_IPS,
-    fair_rerank_exact
 )
 
 import pandas as pd

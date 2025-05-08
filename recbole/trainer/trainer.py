@@ -865,11 +865,6 @@ class Trainer(AbstractTrainer):
         interaction, history_index, positive_u, positive_i = batched_data
         self.unique_elements.update(positive_i.tolist())
         interaction = interaction.to(self.device)
-        # N = 1900
-        # indices = skew_sample(interaction, N)
-        # # # history_index = history_index[indices]
-        # positive_u = positive_u[:N]
-        # positive_i = positive_i[indices]
         try:
             if type(self.model) is SASRec:
                 scores = self.model.full_sort_predict(interaction.to(self.device), param1=param1, param2=param2)
