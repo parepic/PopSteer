@@ -14,7 +14,8 @@ from recbole.quick_start import run, run_recbole, load_data_and_model
 from recbole.utils import (
     get_trainer,
     plot_ndcg_vs_fairness,
-    remove_sparse_users_items
+    remove_sparse_users_items,
+    keep_random_users
 )
 import csv
 
@@ -24,7 +25,8 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
-    # remove_sparse_users_items(20, "yoochoose-clicks")
+    # keep_random_users(dataset="yahoo-music", x = 25000)
+    # remove_sparse_users_items(10, "yahoo-music")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -100,14 +102,14 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_steam.pth",
+                "base_path": "./saved/sasrec_yoochoose.pth",
                 "sae_scale_size": [64, 64],
-                "sae_k": [32, 32],
+                "sae_k": [32, 48],
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
-                "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],        
+                "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],   
                 "train_neg_sample_args": None
                 }
 

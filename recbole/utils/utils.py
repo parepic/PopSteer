@@ -959,13 +959,13 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         iteration += 1
         before = interactions.shape[0]
 
-        valid_users = interactions["session_id:token"].value_counts()
+        valid_users = interactions["anonymous_user_id:token"].value_counts()
         valid_users = valid_users[valid_users >= n].index
-        interactions = interactions[interactions["session_id:token"].isin(valid_users)]
+        interactions = interactions[interactions["anonymous_user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["item_id:token"].value_counts()
+        valid_items = interactions["artist_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["item_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["artist_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -986,6 +986,61 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     # tmp_item.replace(item_path)
 
     print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['item_id:token'].unique())} items.")
+
+
+
+def keep_random_users(
+                      dataset: str,
+                      x: int,
+                      user_col: str = "anonymous_user_id:token",
+                      sep: str = "\t",
+                      seed: int = 42,
+                      chunksize: int = 1_000_000):
+    """
+    Keep only rows whose user_id is in a random sample of X users.
+
+    Parameters
+    ----------
+    input_path : str
+        Path to yoochose-clicks.inter (original file).
+    output_path : str
+        Path to yoochose-clicks-new.inter (filtered file).
+    x : int
+        Number of distinct users to keep.
+    user_col : str
+        Name of the user id column.
+    sep : str
+        Field separator (RecBole .inter files are usually tab-separated).
+    seed : int
+        RNG seed for reproducibility.
+    chunksize : int
+        Number of rows per chunk when scanning with pandas.
+    """
+    random.seed(seed)
+    input_path = rf"./dataset/{dataset}/{dataset}.inter"
+    output_path = rf"./dataset/{dataset}/{dataset}-new.inter"
+
+    # ---------- Pass 1: collect all unique user ids ----------
+    user_ids = set()
+    header = pd.read_csv(input_path, nrows=0, sep=sep).columns.tolist()
+    for chunk in pd.read_csv(input_path, sep=sep, chunksize=chunksize):
+        user_ids.update(chunk[user_col].unique())
+
+    if x > len(user_ids):
+        raise ValueError(f"Requested {x} users but file only has {len(user_ids)}.")
+
+    sampled_users = set(random.sample(list(user_ids), x))
+
+    # ---------- Pass 2: write filtered rows ----------
+    with open(output_path, "w", encoding="utf-8") as out_f:
+        # write header
+        out_f.write(sep.join(header) + "\n")
+
+        for chunk in pd.read_csv(input_path, sep=sep, chunksize=chunksize):
+            keep = chunk[chunk[user_col].isin(sampled_users)]
+            keep.to_csv(out_f, sep=sep, index=False, header=False, mode="a")
+
+
 
 
 
