@@ -102,8 +102,8 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                # "base_path": "./saved/sasrec_yoochoose.pth",
-                # "load": "./saved/sasrec_yoochoose-32-48.pth",
+                "base_path": "./saved/sasrec_yelp2018.pth",
+                "load": "./saved/sasrec_yelp2018-16-48.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [48, 64],
                 "learning_rate": 1e-3,
@@ -111,7 +111,9 @@ if __name__ == "__main__":
                 "steer": [0, 0],
                 "analyze": False,
                 "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],       
-                "train_neg_sample_args": None
+                "train_neg_sample_args": None,
+                "hidden_size": 64,
+                "input_dim": 64
                 }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 3.0],
+                "alpha": [1.5, 1.0],
                 "steer": [0, 1],
                 "analyze": True,
                 "tail_ratio": 0.2,

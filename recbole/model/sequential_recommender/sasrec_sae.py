@@ -84,11 +84,11 @@ class SASRec_SAE(SASRec):
         #     item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
         
         if popular is not None:
-            # if popular == True:
-            #     item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
-            # elif popular == False:
-            #     item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
-            item_seq = replace_with_mappings(sequences=item_seq, popular=popular, dataset=self.dataset)
+            if popular == True:
+                item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+            elif popular == False:
+                item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+            # item_seq = replace_with_mappings(sequences=item_seq, popular=popular, dataset=self.dataset)
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
             return
