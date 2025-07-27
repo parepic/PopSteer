@@ -26,7 +26,7 @@ from recbole.data import create_item_popularity_csv
 
 if __name__ == "__main__":
     # keep_random_users(dataset="yahoo-music", x = 25000)
-    # remove_sparse_users_items(10, "yahoo-music")
+    # remove_sparse_users_items(10, "steamm")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
     # create_item_popularity_csv("ml-1m", 0.2)
-    # plot_ndcg_vs_fairness(dataset="steam")
+    # plot_ndcg_vs_fairness(dataset="steamm",)
     # exit()
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", "-m", type=str, default="BPR", help="name of models")
@@ -102,15 +102,15 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_yoochoose.pth",
+                # "base_path": "./saved/sasrec_yoochoose.pth",
                 "load": "./saved/sasrec_yoochoose-32-48.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-5,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
-                "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],   
+                "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],   
                 "train_neg_sample_args": None
                 }
 

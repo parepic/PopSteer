@@ -959,13 +959,13 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         iteration += 1
         before = interactions.shape[0]
 
-        valid_users = interactions["anonymous_user_id:token"].value_counts()
+        valid_users = interactions["user_id:token"].value_counts()
         valid_users = valid_users[valid_users >= n].index
-        interactions = interactions[interactions["anonymous_user_id:token"].isin(valid_users)]
+        interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["artist_id:token"].value_counts()
+        valid_items = interactions["user_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["artist_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["user_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
