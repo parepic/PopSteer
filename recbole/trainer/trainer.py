@@ -290,10 +290,10 @@ class Trainer(AbstractTrainer):
                 clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
             scaler.step(self.optimizer)
             scaler.update()
-        if self.model.__class__.__name__ == 'LightGCN_SAE':
+        if self.model.__class__.__name__ == 'LightGCN_SAE' or self.model.__class__.__name__ == 'SASRec_SAE':
             self.model.sae_module_i.new_epoch=True
             self.model.sae_module_u.new_epoch=True
-            self.model.sae_module_i.epoch_idx = epoch_idx
+            self.model.sae_module_i.epoch_idx = epoch_idx 
             self.model.sae_module_u.epoch_idx = epoch_idx
 
                 
