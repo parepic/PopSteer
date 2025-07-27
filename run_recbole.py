@@ -105,8 +105,8 @@ if __name__ == "__main__":
                 "base_path": "./saved/sasrec_yoochoose.pth",
                 "load": "./saved/sasrec_yoochoose-32-48.pth",
                 "sae_scale_size": [64, 64],
-                "sae_k": [32, 48],
-                "learning_rate": 1e-5,
+                "sae_k": [32, 64],
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
@@ -131,8 +131,8 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 2.0],
-                "steer": [0, 0],
+                "alpha": [1.5, 3.0],
+                "steer": [0, 1],
                 "analyze": True,
                 "tail_ratio": 0.2,
                 "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"]        
