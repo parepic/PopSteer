@@ -110,7 +110,7 @@ if __name__ == "__main__":
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
-                "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],   
+                "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],       
                 "train_neg_sample_args": None
                 }
 
