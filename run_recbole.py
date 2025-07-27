@@ -103,10 +103,10 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_yoochoose.pth",
-                "load": "./saved/sasrec_yoochoose-32-48.pth",
-                "sae_scale_size": [64, 64],
-                "sae_k": [32, 64],
-                "learning_rate": 1e-4,
+                # "load": "./saved/sasrec_yoochoose-32-48.pth",
+                "sae_scale_size": [32, 96],
+                "sae_k": [48, 64],
+                "learning_rate": 1e-2,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
