@@ -26,7 +26,7 @@ from recbole.data import create_item_popularity_csv
 
 if __name__ == "__main__":
     # keep_random_users(dataset="yahoo-music", x = 25000)
-    # remove_sparse_users_items(10, "steamm")
+    # remove_sparse_users_items(5, "steamm")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_yoochoose.pth",
+                # "base_path": "./saved/sasrec_yoochoose.pth",
                 # "load": "./saved/sasrec_yoochoose-32-48.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [48, 64],
