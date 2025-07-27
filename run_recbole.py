@@ -102,7 +102,7 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                # "base_path": "./saved/sasrec_yoochoose.pth",
+                "base_path": "./saved/sasrec_yoochoose.pth",
                 "load": "./saved/sasrec_yoochoose-32-48.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 48],
