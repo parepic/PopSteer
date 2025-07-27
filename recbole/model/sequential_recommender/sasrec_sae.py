@@ -293,18 +293,18 @@ class SAE(nn.Module):
 
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
 
-                mask = vals < pop_mean - 2 * pop_sd
-                pre_acts[mask, neuron_idx] += w * unpop_sd
+                mask = vals < pop_mean
+                pre_acts[:, neuron_idx] += w * unpop_sd
 
-            else:  # group == "pop"
-                # only modify when activation < unpop_mean
-                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
-                unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
+            # else:  # group == "pop"
+            #     # only modify when activation < unpop_mean
+            #     unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
+            #     unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
 
-                pop_sd     = stats_pop.iloc[neuron_idx]["sd"]
+            #     pop_sd     = stats_pop.iloc[neuron_idx]["sd"]
 
-                mask = vals > unpop_mean + 2 * unpop_sd
-                pre_acts[mask, neuron_idx] -= w * pop_sd
+            #     mask = vals > unpop_mean + 2 * unpop_sd
+            #     pre_acts[mask, neuron_idx] -= w * pop_sd
 
         return pre_acts
      

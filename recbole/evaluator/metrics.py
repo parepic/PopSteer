@@ -28,6 +28,7 @@ import numpy as np
 from collections import Counter
 from sklearn.metrics import auc as sk_auc
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+import torch
 
 from recbole.evaluator.utils import _binary_clf_curve
 from recbole.evaluator.base_metric import AbstractMetric, TopkMetric, LossMetric
@@ -298,6 +299,186 @@ class Recall(TopkMetric):
 
     def metric_info(self, pos_index, pos_len):
         return np.cumsum(pos_index, axis=1) / pos_len.reshape(-1, 1)
+
+
+class NDCGGroup(TopkMetric):
+    """nDCG@K over tail (unpopular) items only.
+    Tail = popularity_label == -1 in item_popularity_labels.csv
+    """
+
+    # need both hits and the item ids at each rank
+    metric_need = ["rec.topk", "rec.items"]
+
+    def __init__(self, config, label, name):
+        super().__init__(config)
+
+        path = rf"./dataset/{config['dataset']}/item_popularity_labels.csv"
+        self.df = pd.read_csv(path)
+        self.items = set(self.df.loc[self.df["popularity_label"] == label, "item_id:token"].astype(int).tolist())
+        self.name = name
+        self.skip_zero_den = False
+
+    def calculate_metric(self, dataobject):
+        tail_pos_index, tail_pos_len = self._used_info_tail(dataobject)
+        result = self.metric_info(tail_pos_index, tail_pos_len)  # reuse same logic
+        return self.topk_result(self.name, result)
+
+    # ---------- helpers ----------
+    def _used_info_tail(self, dataobject):
+        # bool hits matrix & #positives (from parent)
+        pos_index, pos_len = super().used_info(dataobject)  # shape [n_users, K], [n_users]
+
+        # item ids at each rank (shape [n_users, K])
+        items = dataobject.get("rec.items")
+        if items is None:
+            raise KeyError("`rec.items` not found in dataobject. "
+                           "Store top-k item ids during evaluation and add to metric_need.")
+
+        if isinstance(items, torch.Tensor):
+            items = items.cpu().numpy()
+
+        mask = np.isin(items, list(self.items), assume_unique=False)
+        pos_index = np.logical_and(pos_index, mask)
+        pos_len = pos_index.sum(axis=1)
+        return pos_index, pos_len
+
+    def metric_info(self, pos_index, pos_len):
+        """Same as in NDCG, but pos_index/pos_len are already tail-filtered."""
+        K = pos_index.shape[1]
+
+        # ideal length per user = min(#relevant_tail, K)
+        idcg_len = np.where(pos_len > K, K, pos_len)
+
+        # discounts for ranks 1..K
+        ranks = np.arange(1, K + 1, dtype=np.float64)
+        discounts = 1.0 / np.log2(ranks + 1)
+
+        # prefix sums for IDCG
+        idcg_full = np.cumsum(discounts)
+        idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
+        for row, idx in enumerate(idcg_len):
+            if idx <= 0:
+                # avoid div-by-zero later
+                idcg[row, :] = 1.0
+            elif idx < K:
+                idcg[row, idx:] = idcg[row, idx - 1]
+
+        # DCG (cumulative)
+        dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
+
+        ndcg = dcg / idcg
+
+        zero_mask = (pos_len == 0)
+        if self.skip_zero_den:
+            ndcg[zero_mask, :] = np.nan
+        else:
+            ndcg[zero_mask, :] = 0.0
+        return ndcg
+
+
+class NDCGTail(NDCGGroup):
+
+    def __init__(self, config):
+        super().__init__(config, label=-1, name="ndcgtail")
+
+class NDCGHead(NDCGGroup):
+
+    def __init__(self, config):
+        super().__init__(config, label=0, name="ndcgmid")
+
+
+class NDCGMid(NDCGGroup):
+
+    def __init__(self, config):
+        super().__init__(config, label=1, name="ndcghead")
+
+
+class NDCGTail(TopkMetric):
+    """nDCG@K over tail (unpopular) items only.
+    Tail = popularity_label == -1 in item_popularity_labels.csv
+    """
+
+    # need both hits and the item ids at each rank
+    metric_need = ["rec.topk", "rec.items"]
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        path = rf"./dataset/{config['dataset']}/item_popularity_labels.csv"
+        item_col = "item_id:token"
+        pop_col  = "popularity_label"
+
+        df = pd.read_csv(path)
+        self.tail_items = set(df.loc[df[pop_col] == -1, item_col].astype(int).tolist())
+
+        # if True: users with zero relevant tail items are ignored when averaging
+        self.skip_zero_den = False
+
+    def calculate_metric(self, dataobject):
+        tail_pos_index, tail_pos_len = self._used_info_tail(dataobject)
+        result = self.metric_info(tail_pos_index, tail_pos_len)  # reuse same logic
+        return self.topk_result("ndcgtail", result)
+
+    # ---------- helpers ----------
+    def _used_info_tail(self, dataobject):
+        # bool hits matrix & #positives (from parent)
+        pos_index, pos_len = super().used_info(dataobject)  # shape [n_users, K], [n_users]
+
+        # item ids at each rank (shape [n_users, K])
+        items = dataobject.get("rec.items")
+        if items is None:
+            raise KeyError("`rec.items` not found in dataobject. "
+                           "Store top-k item ids during evaluation and add to metric_need.")
+
+        if isinstance(items, torch.Tensor):
+            items = items.cpu().numpy()
+
+        tail_mask = np.isin(items, list(self.tail_items), assume_unique=False)
+        tail_pos_index = np.logical_and(pos_index, tail_mask)
+        tail_pos_len = tail_pos_index.sum(axis=1)
+        return tail_pos_index, tail_pos_len
+
+    def metric_info(self, pos_index, pos_len):
+        """Same as in NDCG, but pos_index/pos_len are already tail-filtered."""
+        K = pos_index.shape[1]
+
+        # ideal length per user = min(#relevant_tail, K)
+        idcg_len = np.where(pos_len > K, K, pos_len)
+
+        # discounts for ranks 1..K
+        ranks = np.arange(1, K + 1, dtype=np.float64)
+        discounts = 1.0 / np.log2(ranks + 1)
+
+        # prefix sums for IDCG
+        idcg_full = np.cumsum(discounts)
+        idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
+        for row, idx in enumerate(idcg_len):
+            if idx <= 0:
+                # avoid div-by-zero later
+                idcg[row, :] = 1.0
+            elif idx < K:
+                idcg[row, idx:] = idcg[row, idx - 1]
+
+        # DCG (cumulative)
+        dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
+
+        ndcg = dcg / idcg
+
+        zero_mask = (pos_len == 0)
+        if self.skip_zero_den:
+            ndcg[zero_mask, :] = np.nan
+        else:
+            ndcg[zero_mask, :] = 0.0
+        return ndcg
+
+    def topk_result(self, metric, value):
+        metric_dict = {}
+        avg = np.nanmean(value, axis=0) if self.skip_zero_den else value.mean(axis=0)
+        for k in self.topk:
+            metric_dict[f"{metric}@{k}"] = round(float(avg[k - 1]), self.decimal_place)
+        return metric_dict
+
+
 
 
 class NDCG(TopkMetric):

@@ -103,7 +103,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_yoochoose.pth",
-                "load": "./saved/sasrec_yoochoose-32-48.pth",
+                # "load": "./saved/sasrec_yoochoose-32-48.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [48, 64],
                 "learning_rate": 1e-4,
@@ -135,7 +135,7 @@ if __name__ == "__main__":
                 "steer": [0, 1],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"]        
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]        
             }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -156,13 +156,15 @@ if __name__ == "__main__":
         
         keys = [
             'recall@10',
-            'mrr@10',
             'ndcg@10',
             'hit@10',
             'deep_lt_coverage@10',
             'giniindex@10',
             'averagepopularity@10',
-            'itemcoverage@10'
+            'itemcoverage@10',
+            'ndcgtail@10',
+            'ndcghead@10',
+            'ndcgmid@10'
         ]
 
         max_key_len = max(len(k) for k in keys)
@@ -170,7 +172,7 @@ if __name__ == "__main__":
         # print header
         print(f"{'Metric':<{max_key_len}} | Value")
         print(f"{'-'*max_key_len}-|-------")
-
+        print(test_result)
         # print each metric with its dynamic value
         for key in keys:
             value = test_result[key]             # get value from your OrderedDict
