@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 "train_neg_sample_args": None,
                 "hidden_size": 128,
                 "input_dim": 128,
-                "valid_metric": "SAE_LOSS_i@10"
+                "valid_metric": "SAE_LOSS_u"
                 }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
