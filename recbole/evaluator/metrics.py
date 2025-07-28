@@ -36,6 +36,8 @@ from recbole.utils import EvaluatorType
 
     
 
+
+
 class Deep_LT_Coverage(AbstractMetric):
     r"""Deep_LT_Coverage computes the coverage of long-tail items.
 
@@ -55,7 +57,7 @@ class Deep_LT_Coverage(AbstractMetric):
     """
 
     metric_type = EvaluatorType.RANKING
-    metric_need = ["rec.items", "data.count_items"]
+    metric_need = ["rec.items", "data.count_items", "data.label"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -393,59 +395,68 @@ class NDCGMid(NDCGGroup):
         super().__init__(config, label=1, name="ndcghead")
 
 
-class NDCGTail(TopkMetric):
-    """nDCG@K over tail (unpopular) items only.
-    Tail = popularity_label == -1 in item_popularity_labels.csv
+
+class NDCGUserGroup(TopkMetric):
     """
+    nDCG@K computed only over a subset of users, selected by `data.label`.
 
-    # need both hits and the item ids at each rank
-    metric_need = ["rec.topk", "rec.items"]
+    Expects:
+        - rec.topk  : bool hit matrix, shape [n_users, K]  (from TopkMetric.used_info)
+        - data.label: shape [n_users], int labels (-1, 0, 1, …)
 
-    def __init__(self, config):
+    Parameters
+    ----------
+    config : dict
+    user_label : int
+        Which label value to keep (e.g. -1 for 'tail' users)
+    name : str
+        Metric name to report (e.g. 'ndcgtail_user')
+    skip_zero_den : bool
+        If True, rows with zero relevant items are set to NaN (ignored in mean).
+        If False, they are set to 0.0.
+    """
+    metric_need = ["rec.topk", "data.label"]
+
+    def __init__(self, config, user_label, name, skip_zero_den=False):
         super().__init__(config)
-
-        path = rf"./dataset/{config['dataset']}/item_popularity_labels.csv"
-        item_col = "item_id:token"
-        pop_col  = "popularity_label"
-
-        df = pd.read_csv(path)
-        self.tail_items = set(df.loc[df[pop_col] == -1, item_col].astype(int).tolist())
-
-        # if True: users with zero relevant tail items are ignored when averaging
-        self.skip_zero_den = False
+        self.user_label = user_label
+        self.name = name
+        self.skip_zero_den = skip_zero_den
 
     def calculate_metric(self, dataobject):
-        tail_pos_index, tail_pos_len = self._used_info_tail(dataobject)
-        result = self.metric_info(tail_pos_index, tail_pos_len)  # reuse same logic
-        return self.topk_result("ndcgtail", result)
+        # parent provides pos_index (hits) and pos_len (#positives) for ALL users
+        pos_index, pos_len = super().used_info(dataobject)
 
-    # ---------- helpers ----------
-    def _used_info_tail(self, dataobject):
-        # bool hits matrix & #positives (from parent)
-        pos_index, pos_len = super().used_info(dataobject)  # shape [n_users, K], [n_users]
+        labels = dataobject.get("data.label")
 
-        # item ids at each rank (shape [n_users, K])
-        items = dataobject.get("rec.items")
-        if items is None:
-            raise KeyError("`rec.items` not found in dataobject. "
-                           "Store top-k item ids during evaluation and add to metric_need.")
+        if labels is None:
+            raise KeyError("`data.label` not found in dataobject. Add it to metric_need.")
+        if isinstance(labels, torch.Tensor):
+            labels = labels.cpu().numpy()
 
-        if isinstance(items, torch.Tensor):
-            items = items.cpu().numpy()
+        user_mask = (labels == self.user_label)
+        # Handle the (rare) case where the mask is empty
+        if not np.any(user_mask):
+            K = pos_index.shape[1]
+            empty = np.zeros((0, K), dtype=np.float64)
+            return self.topk_result(self.name, empty)
 
-        tail_mask = np.isin(items, list(self.tail_items), assume_unique=False)
-        tail_pos_index = np.logical_and(pos_index, tail_mask)
-        tail_pos_len = tail_pos_index.sum(axis=1)
-        return tail_pos_index, tail_pos_len
+        pos_index_g = pos_index[user_mask]
+        pos_len_g = pos_len[user_mask]
 
+        result = self.metric_info(pos_index_g, pos_len_g)
+        return self.topk_result(self.name, result)
+
+
+    # ---------- same helper as before ----------
     def metric_info(self, pos_index, pos_len):
-        """Same as in NDCG, but pos_index/pos_len are already tail-filtered."""
+        """Exactly the same logic as in your NDCGGroup.metric_info."""
         K = pos_index.shape[1]
 
-        # ideal length per user = min(#relevant_tail, K)
+        # ideal length per user = min(#relevant, K)
         idcg_len = np.where(pos_len > K, K, pos_len)
 
-        # discounts for ranks 1..K
+        # rank discounts
         ranks = np.arange(1, K + 1, dtype=np.float64)
         discounts = 1.0 / np.log2(ranks + 1)
 
@@ -454,14 +465,12 @@ class NDCGTail(TopkMetric):
         idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
         for row, idx in enumerate(idcg_len):
             if idx <= 0:
-                # avoid div-by-zero later
-                idcg[row, :] = 1.0
+                idcg[row, :] = 1.0  # avoid div-by-zero
             elif idx < K:
                 idcg[row, idx:] = idcg[row, idx - 1]
 
-        # DCG (cumulative)
+        # DCG
         dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
-
         ndcg = dcg / idcg
 
         zero_mask = (pos_len == 0)
@@ -471,12 +480,25 @@ class NDCGTail(TopkMetric):
             ndcg[zero_mask, :] = 0.0
         return ndcg
 
-    def topk_result(self, metric, value):
-        metric_dict = {}
-        avg = np.nanmean(value, axis=0) if self.skip_zero_den else value.mean(axis=0)
-        for k in self.topk:
-            metric_dict[f"{metric}@{k}"] = round(float(avg[k - 1]), self.decimal_place)
-        return metric_dict
+
+
+class NDCGUserTail(NDCGUserGroup):
+    def __init__(self, config):
+        super().__init__(config, user_label=1, name="ndcgusertail")
+
+
+class NDCGUserMid(NDCGUserGroup):
+    def __init__(self, config):
+        super().__init__(config, user_label=2, name="ndcgusermid")
+
+
+class NDCGUserHead(NDCGUserGroup):
+    def __init__(self, config):
+        super().__init__(config, user_label=3, name="ndcguserhead")
+
+
+
+
 
 
 

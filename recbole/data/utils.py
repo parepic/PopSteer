@@ -464,101 +464,28 @@ def create_samplers(config, dataset, built_datasets):
 
 
 
-def create_item_popularity_csv(dataset: str, p_top: float, p_bottom: float):
-    """
-    Create a CSV assigning popularity labels to items with three classes:
-        +1 : item lies within the top cumulative fraction p_top (most popular)
-        -1 : item lies within the bottom cumulative fraction p_bottom (least popular)
-         0 : all other items
+# def create_item_popularity_csv(dataset: str, p_top: float, p_bottom: float):
+#     """
+#     Create a CSV assigning popularity labels to items with three classes:
+#         +1 : item lies within the top cumulative fraction p_top (most popular)
+#         -1 : item lies within the bottom cumulative fraction p_bottom (least popular)
+#          0 : all other items
          
-    Args:
-        dataset   : name of the dataset directory under ./dataset/{dataset}
-        p_top     : threshold in (0,1] for cumulative fraction from the head (descending sort)
-        p_bottom  : threshold in (0,1] for cumulative fraction from the tail (ascending sort)
-    """
-    assert 0 < p_top <= 1, "p_top must be in (0, 1]"
-    assert 0 < p_bottom <= 1, "p_bottom must be in (0, 1]"
-    
-    # -------------------------------
-    # Step 1: Load training interactions and compute frequencies.
-    # -------------------------------
-    dataset_path = os.path.join(".", "dataset", dataset)
-    train_npz_path = os.path.join(dataset_path, "biased_eval_train.npz")
-    data = np.load(train_npz_path)
-    item_ids = data["item_id"]          # array of item IDs
-    total_interactions = len(item_ids)
-
-    unique_items, counts = np.unique(item_ids, return_counts=True)
-    pop_scores = counts / total_interactions
-
-    df = pd.DataFrame({
-        "item_id:token": unique_items,
-        "interaction_count": counts,
-        "pop_score": pop_scores
-    })
-
-    # -------------------------------
-    # Step 2: Identify top popular items.
-    # -------------------------------
-    df_top = df.sort_values(by="interaction_count", ascending=False).reset_index(drop=True)
-    total_sum = df_top["interaction_count"].sum()
-    df_top["cum_interaction"] = df_top["interaction_count"].cumsum()
-    df_top["cum_frac"] = df_top["cum_interaction"] / total_sum
-    df_top["label_top"] = (df_top["cum_frac"] <= p_top).astype(int)
-    top_labels = df_top.set_index("item_id:token")["label_top"].to_dict()
-
-    # -------------------------------
-    # Step 3: Identify bottom (least popular) items.
-    # -------------------------------
-    df_bottom = df.sort_values(by="interaction_count", ascending=True).reset_index(drop=True)
-    df_bottom["cum_interaction"] = df_bottom["interaction_count"].cumsum()
-    df_bottom["cum_frac"] = df_bottom["cum_interaction"] / total_sum
-    df_bottom["label_bottom"] = (df_bottom["cum_frac"] <= p_bottom).astype(int)
-    bottom_labels = df_bottom.set_index("item_id:token")["label_bottom"].to_dict()
-
-    # -------------------------------
-    # Step 4: Assign final labels.
-    # -------------------------------
-    def assign_label(item_id):
-        if top_labels.get(item_id, 0) == 1:
-            return 1
-        if bottom_labels.get(item_id, 0) == 1:
-            return -1
-        return 0
-
-    df["popularity_label"] = df["item_id:token"].apply(assign_label)
-
-    # (Optional) For transparency, you can record whether an item was in either set
-    df = df.sort_values(by="interaction_count", ascending=False).reset_index(drop=True)
-
-    output_csv = os.path.join(dataset_path, "item_popularity_labels.csv")
-    df.to_csv(output_csv, index=False)
-    print(f"CSV file '{output_csv}' created successfully.")
-
-
-
-# def create_item_popularity_csv(dataset: str, p: float):
-#     """
-#     Create a CSV assigning popularity labels based on item rank (not interaction mass).
-
 #     Args:
-#         dataset : dataset directory name under ./dataset/{dataset}
-#         p       : fraction (0 < p < 1). Example: 0.1 -> top 10% items get +1, bottom 10% get -1.
-#                   Usually choose p <= 0.5 to avoid overlap.
-
-#     Output:
-#         Writes ./dataset/{dataset}/item_popularity_labels.csv with columns:
-#             item_id:token, interaction_count, pop_score, popularity_label
+#         dataset   : name of the dataset directory under ./dataset/{dataset}
+#         p_top     : threshold in (0,1] for cumulative fraction from the head (descending sort)
+#         p_bottom  : threshold in (0,1] for cumulative fraction from the tail (ascending sort)
 #     """
-#     if not (0 < p < 1):
-#         raise ValueError("p must be in (0,1)")
-#     if p > 0.5:
-#         print("Warning: p > 0.5 causes overlap of top and bottom sets. Proceeding but resolving conflicts toward +1.")
-
+#     assert 0 < p_top <= 1, "p_top must be in (0, 1]"
+#     assert 0 < p_bottom <= 1, "p_bottom must be in (0, 1]"
+    
+#     # -------------------------------
+#     # Step 1: Load training interactions and compute frequencies.
+#     # -------------------------------
 #     dataset_path = os.path.join(".", "dataset", dataset)
 #     train_npz_path = os.path.join(dataset_path, "biased_eval_train.npz")
 #     data = np.load(train_npz_path)
-#     item_ids = data["item_id"]
+#     item_ids = data["item_id"]          # array of item IDs
 #     total_interactions = len(item_ids)
 
 #     unique_items, counts = np.unique(item_ids, return_counts=True)
@@ -570,40 +497,113 @@ def create_item_popularity_csv(dataset: str, p_top: float, p_bottom: float):
 #         "pop_score": pop_scores
 #     })
 
-#     n_items = len(df)
-#     k = max(1, int(round(p * n_items)))   # number of items in each extreme set
+#     # -------------------------------
+#     # Step 2: Identify top popular items.
+#     # -------------------------------
+#     df_top = df.sort_values(by="interaction_count", ascending=False).reset_index(drop=True)
+#     total_sum = df_top["interaction_count"].sum()
+#     df_top["cum_interaction"] = df_top["interaction_count"].cumsum()
+#     df_top["cum_frac"] = df_top["cum_interaction"] / total_sum
+#     df_top["label_top"] = (df_top["cum_frac"] <= p_top).astype(int)
+#     top_labels = df_top.set_index("item_id:token")["label_top"].to_dict()
 
-#     # Sort descending for top set
-#     df_sorted_desc = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
-#     # Sort ascending for bottom set
-#     df_sorted_asc = df.sort_values("interaction_count", ascending=True).reset_index(drop=True)
+#     # -------------------------------
+#     # Step 3: Identify bottom (least popular) items.
+#     # -------------------------------
+#     df_bottom = df.sort_values(by="interaction_count", ascending=True).reset_index(drop=True)
+#     df_bottom["cum_interaction"] = df_bottom["interaction_count"].cumsum()
+#     df_bottom["cum_frac"] = df_bottom["cum_interaction"] / total_sum
+#     df_bottom["label_bottom"] = (df_bottom["cum_frac"] <= p_bottom).astype(int)
+#     bottom_labels = df_bottom.set_index("item_id:token")["label_bottom"].to_dict()
 
-#     # Determine cut indices
-#     # Using rank positions: first k items in desc list -> top, first k items in asc list -> bottom
-#     top_item_ids = set(df_sorted_desc.head(k)["item_id:token"])
-#     bottom_item_ids = set(df_sorted_asc.head(k)["item_id:token"])
-
-#     # If overlap occurs (possible if p > 0.5 or ties + small n) resolve: priority to top (+1)
-#     overlap = top_item_ids & bottom_item_ids
-#     if overlap:
-#         bottom_item_ids -= overlap
-
+#     # -------------------------------
+#     # Step 4: Assign final labels.
+#     # -------------------------------
 #     def assign_label(item_id):
-#         if item_id in top_item_ids:
+#         if top_labels.get(item_id, 0) == 1:
 #             return 1
-#         if item_id in bottom_item_ids:
+#         if bottom_labels.get(item_id, 0) == 1:
 #             return -1
 #         return 0
 
 #     df["popularity_label"] = df["item_id:token"].apply(assign_label)
 
-#     # Optional: sort by interaction_count descending for readability
-#     df_out = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
+#     # (Optional) For transparency, you can record whether an item was in either set
+#     df = df.sort_values(by="interaction_count", ascending=False).reset_index(drop=True)
 
-#     out_path = os.path.join(dataset_path, "item_popularity_labels.csv")
-#     df_out.to_csv(out_path, index=False)
-#     print(f"Written {out_path}")
-#     print(f"Top set size: {len(top_item_ids)}  Bottom set size: {len(bottom_item_ids)}  Total items: {n_items}")
+#     output_csv = os.path.join(dataset_path, "item_popularity_labels.csv")
+#     df.to_csv(output_csv, index=False)
+#     print(f"CSV file '{output_csv}' created successfully.")
+
+
+
+def create_item_popularity_csv(dataset: str, p: float):
+    """
+    Create a CSV assigning popularity labels based on item rank (not interaction mass).
+
+    Args:
+        dataset : dataset directory name under ./dataset/{dataset}
+        p       : fraction (0 < p < 1). Example: 0.1 -> top 10% items get +1, bottom 10% get -1.
+                  Usually choose p <= 0.5 to avoid overlap.
+
+    Output:
+        Writes ./dataset/{dataset}/item_popularity_labels.csv with columns:
+            item_id:token, interaction_count, pop_score, popularity_label
+    """
+    if not (0 < p < 1):
+        raise ValueError("p must be in (0,1)")
+    if p > 0.5:
+        print("Warning: p > 0.5 causes overlap of top and bottom sets. Proceeding but resolving conflicts toward +1.")
+
+    dataset_path = os.path.join(".", "dataset", dataset)
+    train_npz_path = os.path.join(dataset_path, "biased_eval_train.npz")
+    data = np.load(train_npz_path)
+    item_ids = data["item_id"]
+    total_interactions = len(item_ids)
+
+    unique_items, counts = np.unique(item_ids, return_counts=True)
+    pop_scores = counts / total_interactions
+
+    df = pd.DataFrame({
+        "item_id:token": unique_items,
+        "interaction_count": counts,
+        "pop_score": pop_scores
+    })
+
+    n_items = len(df)
+    k = max(1, int(round(p * n_items)))   # number of items in each extreme set
+
+    # Sort descending for top set
+    df_sorted_desc = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
+    # Sort ascending for bottom set
+    df_sorted_asc = df.sort_values("interaction_count", ascending=True).reset_index(drop=True)
+
+    # Determine cut indices
+    # Using rank positions: first k items in desc list -> top, first k items in asc list -> bottom
+    top_item_ids = set(df_sorted_desc.head(k)["item_id:token"])
+    bottom_item_ids = set(df_sorted_asc.head(k)["item_id:token"])
+
+    # If overlap occurs (possible if p > 0.5 or ties + small n) resolve: priority to top (+1)
+    overlap = top_item_ids & bottom_item_ids
+    if overlap:
+        bottom_item_ids -= overlap
+
+    def assign_label(item_id):
+        if item_id in top_item_ids:
+            return 1
+        if item_id in bottom_item_ids:
+            return -1
+        return 0
+
+    df["popularity_label"] = df["item_id:token"].apply(assign_label)
+
+    # Optional: sort by interaction_count descending for readability
+    df_out = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
+
+    out_path = os.path.join(dataset_path, "item_popularity_labels.csv")
+    df_out.to_csv(out_path, index=False)
+    print(f"Written {out_path}")
+    print(f"Top set size: {len(top_item_ids)}  Bottom set size: {len(bottom_item_ids)}  Total items: {n_items}")
 
 
 import os

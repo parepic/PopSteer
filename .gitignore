@@ -1,6 +1,4 @@
-# Saved models
 *.pth
-
 .vscode/
 .idea/
 *.pyc

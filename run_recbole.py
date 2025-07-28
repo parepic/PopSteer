@@ -15,7 +15,8 @@ from recbole.utils import (
     get_trainer,
     plot_ndcg_vs_fairness,
     remove_sparse_users_items,
-    keep_random_users
+    keep_random_users,
+    make_labels
 )
 import csv
 
@@ -34,7 +35,9 @@ if __name__ == "__main__":
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
     # create_item_popularity_csv("ml-1m", 0.2)
-    # plot_ndcg_vs_fairness(dataset="yelp2018", model="SASRec")
+    # plot_ndcg_vs_fairness(dataset="yoochoose-clicks", model="SASRec")
+    # exit()
+    # make_labels(dataset="yoochoose-clicks")
     # exit()
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", "-m", type=str, default="BPR", help="name of models")
@@ -103,17 +106,18 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_gift.pth",
-                "load": "./saved/sasrec_gift-16-32.pth",
+                "load": "./saved/sasrec_yoochoose.pth",
                 "sae_scale_size": [32, 64],
                 "sae_k": [8, 32],
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
-                "steer": [0, 0],
+                "steer": [0, 1],
                 "analyze": False,
-                "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"],       
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"],
                 "train_neg_sample_args": None,
-                "hidden_size": 64,
-                "input_dim": 64
+                "hidden_size": 128,
+                "input_dim": 128,
+                "valid_metric": "SAE_LOSS_i@10"
                 }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
@@ -133,11 +137,12 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 0.5],
-                "steer": [0, 1],
+                "alpha": [1.5, 1],
+                "steer": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]        
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"],
+                "load_col": {"inter": ['user_id', 'item_id', 'rating', 'timestamp', 'label']}
             }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -166,8 +171,11 @@ if __name__ == "__main__":
             'itemcoverage@10',
             'ndcgtail@10',
             'ndcghead@10',
-            'ndcgmid@10'
-        ]
+            'ndcgmid@10',
+            'ndcgusertail@10',
+            'ndcguserhead@10',
+            'ndcgusermid@10'
+            ]
 
         max_key_len = max(len(k) for k in keys)
 

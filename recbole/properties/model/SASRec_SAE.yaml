@@ -10,9 +10,8 @@ initializer_range: 0.02         # (float) The standard deviation for normal init
 loss_type: 'BPR'                 # (str) The type of loss function. Range in ['BPR', 'CE'].
 train_neg_sample_args: {'distribution': 'uniform', 'sample_num': 1}
 
-
 input_dim: 128
-metrics: ["Recall","MRR","NDCG","Hit","Precision","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"]  # (list or str) Evaluation metrics.
+metrics: ["Recall","NDCG","Hit", "Deep_LT_Coverage", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"]
 
 
 analyze: False

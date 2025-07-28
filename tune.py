@@ -18,7 +18,7 @@ def tune(args):
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
-            "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage"]       
+            "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]       
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -28,33 +28,32 @@ def tune(args):
     trainer.eval_collector.data_collect(train_data)
     # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     # change2 = [0.0]
-    change1 = [0]
-    change2 = [0.0, 3.0, 4.0, 5.0]
+    change2= [0.0, 0.25, 0.5, 0.75, 1.0]
+    change1= [0.0]
 
 
     metric_keys = [
-        'mrr@10',
         'ndcg@10',
         'hit@10',
         'deep_lt_coverage@10',
         'giniindex@10',
         'averagepopularity@10',
         'itemcoverage@10',
-        'sae_loss_i',
-        'sae_loss_u' 
+        'ndcgmid@10',
+        'ndcgtail@10',
+        'ndcghead@10',
     ]
 
-
     SHORT_NAMES = {
-        'mrr@10': 'MRR@10',
         'ndcg@10': 'NDCG@10',
         'hit@10': 'HIT@10',
         'deep_lt_coverage@10': 'DLTC@10',
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
         'itemcoverage@10': 'COV@10',
-        'sae_loss_i': 'SAELOSS_i',
-        'sae_loss_u': 'SAELOSS_u'
+        'ndcgtail@10':'NDCGTAIL@10',
+        'ndcgmid@10':'NDCGMID@10',
+        'ndcghead@10':'NDCGHEAD@10'
     }
 
     rows_raw = []
@@ -63,6 +62,9 @@ def tune(args):
             trainer.model.recommendation_count = torch.zeros(trainer.model.n_items, dtype=torch.long, device=trainer.device)
             trainer.model.sae_module_i.alpha = a_i
             trainer.model.sae_module_u.alpha = a_u
+            trainer.model.sae_module_i._steer_ready = False
+            trainer.model.sae_module_u._steer_ready = False
+
 
             test_result = trainer.evaluate(
                 valid_data,
@@ -129,7 +131,7 @@ def tune(args):
 
     # --- Write selected results to CSV (with separate alphas) --
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-new.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg", "mrr", "hit", "dltc@10", "avgpop@10", "gini@10", "cov@10"]
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -139,12 +141,13 @@ def tune(args):
                 "alpha_u": r["alpha_u"],
                 "alpha_i": r["alpha_i"],
                 "ndcg": r["ndcg@10"],
-                "mrr": r["mrr@10"],
-                "hit": r["hit@10"],
                 "dltc@10": r["deep_lt_coverage@10"],
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
+                'ndcgtail@10': r["ndcgtail@10"],
+                'ndcgmid@10': r["ndcgmid@10"],
+                'ndcghead@10': r["ndcghead@10"]
             })
 
     return rows_raw, formatted_rows
@@ -156,7 +159,7 @@ def tune_FAIR(args):
     if args.config_json is None:
         config_dict = {
             "alpha": [0.5, 0.5],
-            "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage" ]        
+            "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]       
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -175,24 +178,29 @@ def tune_FAIR(args):
     # change1 = [0, 50, 256, 512, 1024, 4096, 8192]
 
     metric_keys = [
-        'mrr@10',
         'ndcg@10',
         'hit@10',
         'deep_lt_coverage@10',
         'giniindex@10',
         'averagepopularity@10',
-        'itemcoverage@10'
+        'itemcoverage@10',
+        'ndcgmid@10',
+        'ndcgtail@10',
+        'ndcghead@10',
     ]
 
     SHORT_NAMES = {
-        'mrr@10': 'MRR@10',
         'ndcg@10': 'NDCG@10',
         'hit@10': 'HIT@10',
         'deep_lt_coverage@10': 'DLTC@10',
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
-        'itemcoverage@10': 'COV@10'
+        'itemcoverage@10': 'COV@10',
+        'ndcgtail@10':'NDCGTAIL@10',
+        'ndcgmid@10':'NDCGMID@10',
+        'ndcghead@10':'NDCGHEAD@10'
     }
+
 
     rows_raw = []
     for a_u in change1:
@@ -264,7 +272,7 @@ def tune_FAIR(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-new.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}.csv'
     fieldnames = ["alpha_u", "alpha_i", "ndcg", "mrr", "hit", "dltc@10", "avgpop@10", "gini@10", "cov@10"]
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:

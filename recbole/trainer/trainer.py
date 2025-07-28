@@ -775,6 +775,60 @@ class Trainer(AbstractTrainer):
 
 
 
+    @torch.no_grad()
+    def save_user_scores_neurons(
+        self, data, model_file=None, show_progress=True, eval_data=True, sae=True
+    ):
+        r"""Evaluate the model based on the eval data.
+
+        Args:
+            eval_data (DataLoader): the eval data
+            load_best_model (bool, optional): whether load the best model in the training process, default: True.
+                                              It should be set True, if users want to test the model after training.
+            model_file (str, optional): the saved model file, default: None. If users want to test the previously
+                                        trained model file, they can set this parameter.
+            show_progress (bool): Show the progress of evaluate epoch. Defaults to ``False``.
+
+        Returns:
+            collections.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
+        """
+        
+        checkpoint_file = model_file
+        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        self.device = torch.device(self.device)
+        message_output = "Loading model structure and parameters from {}".format(
+            checkpoint_file
+        )
+        self.logger.info(message_output)
+        self.model.create_synthetic_dataset()
+        self.model.eval()
+        iter_data = (
+            tqdm(
+                data,
+                total=len(data),
+                ncols=100,
+            )
+            if show_progress
+            else data
+        )
+        for batch_idx, batched_data in enumerate(iter_data):
+            if eval_data:
+                interaction, history_index, positive_u, positive_i = batched_data
+            else:
+                interaction = batched_data
+            interaction = interaction.to(self.device)
+
+            self.optimizer.zero_grad()
+        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
+            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")
+        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5"):
+            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5")
+
+
+
+
 
 
 

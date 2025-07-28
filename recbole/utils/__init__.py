@@ -25,7 +25,8 @@ from recbole.utils.utils import (
     save_mean_SD,
     make_items_popular,
     make_items_unpopular,
-    keep_random_users
+    keep_random_users,
+    make_labels
 
 
 )
@@ -73,5 +74,6 @@ __all__ = [
     "save_cohens_d",
     "make_items_popular",
     "make_items_unpopular",
-    "keep_random_users"
+    "keep_random_users",
+    "make_labels"
 ]

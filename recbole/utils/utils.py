@@ -772,167 +772,115 @@ import os
 import csv
 import matplotlib.pyplot as plt
 
-def plot_ndcg_vs_fairness(show=True, dataset=None, add_lightgcn=True, model="LightGCN"):
+import os, csv
+import matplotlib.pyplot as plt
+from math import isnan
+
+import os, csv
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+
+
+def plot_ndcg_vs_fairness(
+    dataset,
+    model="LightGCN",
+    files=None,
+    show=True,
+    facet=True,   # True = 3 side-by-side axes; False = single axis
+):
     """
-    Create three scatter plots: NDCG vs each fairness metric (dltc@10, avgpop@10, gini@10),
-    overlaying points from user-side, item-side, full, FAIR CSV results, and (optionally) a LightGCN baseline.
-
-    Parameters
-    ----------
-    show : bool
-        If True, call plt.show() at the end.
-    dataset : str
-        Name of the dataset directory under ./dataset/ that contains the CSV files.
-    add_lightgcn : bool
-        Whether to plot the LightGCN reference point.
-
-    Returns
-    -------
-    figs : dict[str, matplotlib.figure.Figure]
-        Mapping from metric key to the created Figure.
+    Plot ndcghead/mid/tail@10 vs overall ndcg for each result file.
+    Color/marker identify the file; each slice is a separate facet by default.
     """
     if dataset is None:
-        raise ValueError("Please provide dataset name (e.g. dataset='lastfm').")
+        raise ValueError("Please provide dataset name (e.g., 'lastfm').")
 
-    # user_file = rf"dataset/{dataset}/results/PopSteer_{dataset}_user.csv"
-    # item_file = rf"dataset/{dataset}/results/PopSteer_{dataset}_item.csv"
-    # full_file = rf"dataset/{dataset}/results/PopSteer_{dataset}_full.csv"
-    # fair_file = rf"dataset/{dataset}/results/FAIR_{dataset}.csv"
-    user_file = rf"dataset/{dataset}/results/{model}_user_{dataset}-new.csv"
-    item_file = rf"dataset/{dataset}/results/{model}_item_{dataset}-new.csv"
-    full_file = rf"dataset/{dataset}/results/{model}_full_{dataset}-new.csv"
-    fair_file = rf"dataset/{dataset}/results/{model}_fair_{dataset}-new.csv"
+    if files is None:
+        files = {
+            "User-side": rf"dataset/{dataset}/results/{model}_user_{dataset}-neww.csv",
+            "Item-side": rf"dataset/{dataset}/results/{model}_item_{dataset}-new.csv",
+            "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-new.csv",
+            "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-new.csv",
+        }
 
     def load_csv(path):
         if not os.path.isfile(path):
-            raise FileNotFoundError(f"File not found: {path}")
+            return []
         rows = []
         with open(path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
                     rows.append({
-                        "ndcg": float(row["ndcg"]),
-                        "dltc@10": float(row["dltc@10"]),
-                        "avgpop@10": float(row["avgpop@10"]),
-                        "gini@10": float(row["gini@10"]),
-                        "cov@10": float(row["cov@10"]),
-
+                        "ndcg":          float(row["ndcg"]),
+                        "ndcghead@10":   float(row.get("ndcghead@10", "nan")),
+                        "ndcgmid@10":    float(row.get("ndcgmid@10", "nan")),
+                        "ndcgtail@10":   float(row.get("ndcgtail@10", "nan")),
                     })
                 except (KeyError, ValueError):
-                    # Skip malformed / incomplete rows
                     continue
         return rows
 
-    user_rows = load_csv(user_file)
-    item_rows = None
-    full_rows = None
-    fair_rows = load_csv(fair_file)
+    data = {label: load_csv(p) for label, p in files.items()}
 
-    # LightGCN reference metrics (single point). Add other dataset baselines if needed.
-    # lightgcn_point_lastfm = {
-    #     "ndcg": 0.8289,
-    #     "dltc@10": 0.7291,
-    #     "avgpop@10": 91.7490,
-    #     "gini@10": 0.7053,
-    #     "cov@10": 0.8051,
-    # }
-
-    lightgcn_point_lastfm = {
-        "ndcg": 0.6103,
-        "dltc@10": 0.7946,
-        "avgpop@10": 87.6849,
-        "gini@10": 0.6555,
-        "cov@10": 0.8461,
+    slice_keys = ["ndcghead@10", "ndcgmid@10", "ndcgtail@10"]
+    slice_titles = {
+        "ndcghead@10": "Head NDCG@10",
+        "ndcgmid@10":  "Mid NDCG@10",
+        "ndcgtail@10": "Tail NDCG@10",
     }
 
+    # Style maps
+    colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
+    markers = ["o", "s", "^", "D", "P", "X"]
+    file_list = [k for k,v in data.items() if v]
+    file_color  = {f: colors[i % len(colors)]  for i, f in enumerate(file_list)}
+    file_marker = {f: markers[i % len(markers)] for i, f in enumerate(file_list)}
 
-    lightgcn_point_ml_1m = {
-        "ndcg": 0.2190,
-        "dltc@10": 0.3016,
-        "avgpop@10": 1101.8943,
-        "gini@10": 0.8696,
-        "cov@10": 0.5236,
-    }
+    if facet:
+        fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
+        axes = np.atleast_1d(axes)
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        axes = [ax] * 3  # reuse same axis
 
-    lightgcn_point = None
-    # if dataset.lower() == "lastfm":
-    #     lightgcn_point = lightgcn_point_lastfm
-    # if dataset.lower() == "ml-1mm":
-    #     lightgcn_point = lightgcn_point_ml_1m
-
-    fairness_metrics = [
-        ("dltc@10", "Deep LT Coverage @10"),
-        ("avgpop@10", "Average Popularity @10"),
-        ("gini@10", "Gini Index @10"),
-        ("cov@10", "Coverage @10"),
-    ]
-
-    figs = {}
-
-    for metric_key, metric_full_name in fairness_metrics:
-        fig, ax = plt.subplots()
-
-        if user_rows:
-            ax.scatter(
-                [r["ndcg"] for r in user_rows],
-                [r[metric_key] for r in user_rows],
-                marker="o",
-                label="User-side",
-                alpha=0.8,
-                edgecolors="none"
+    for ax, sk in zip(axes, slice_keys):
+        for f_label, rows in data.items():
+            if not rows:
+                continue
+            rows_sorted = sorted(
+                [(r["ndcg"], r[sk]) for r in rows if not math.isnan(r[sk])],
+                key=lambda t: t[0]
             )
-        if item_rows:
-            ax.scatter(
-                [r["ndcg"] for r in item_rows],
-                [r[metric_key] for r in item_rows],
-                marker="s",
-                label="Item-side",
-                alpha=0.8,
-                edgecolors="none"
-            )
-        if full_rows:
-            ax.scatter(
-                [r["ndcg"] for r in full_rows],
-                [r[metric_key] for r in full_rows],
-                marker="^",
-                label="Both-sides",
-                alpha=0.8,
-                edgecolors="none"
-            )
-        if fair_rows:
-            ax.scatter(
-                [r["ndcg"] for r in fair_rows],
-                [r[metric_key] for r in fair_rows],
-                marker="D",
-                label="FAIR",
-                alpha=0.85,
-                edgecolors="none"
-            )
-
-        if add_lightgcn and lightgcn_point is not None:
-            ax.scatter(
-                [lightgcn_point["ndcg"]],
-                [lightgcn_point[metric_key]],
-                marker="*",
-                s=180,
-                label="LightGCN",
-                alpha=0.95,
-                edgecolors="black",
-                linewidths=0.6
-            )
-
-        ax.set_xlabel("NDCG@10")
-        ax.set_ylabel(metric_full_name)
-        ax.set_title(f"{dataset} NDCG vs {metric_full_name}")
+            if not rows_sorted:
+                continue
+            xs, ys = zip(*rows_sorted)
+            ax.plot(xs, ys,
+                    linestyle="-",
+                    linewidth=1,
+                    marker=file_marker[f_label],
+                    markersize=6,
+                    color=file_color[f_label],
+                    alpha=0.9,
+                    label=f_label if sk == "ndcghead@10" else "_nolegend_")
+        ax.set_xlabel("NDCG@10 (overall)")
+        ax.set_ylabel(slice_titles[sk])
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
-        ax.legend()
-        figs[metric_key] = fig
+        if facet:
+            ax.set_title(slice_titles[sk])
+
+    # One legend total
+    axes[0].legend(title="File", fontsize=8, frameon=True)
+
+    fig.suptitle(f"{dataset}: NDCG(head/mid/tail) vs Overall NDCG@10", y=1.02 if facet else 1.03)
+    fig.tight_layout()
 
     if show:
         plt.show()
 
-    return figs
+    return fig
+
 
 import shutil
 
@@ -1317,57 +1265,134 @@ def save_cohens_d(dataset):
 def make_items_popular(item_seq_len, dataset, n):
     item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels.csv")
     
-    # Filter rows where popularity_label == -1
+    # Filter rows where popularity_label == 1
     filtered_items = item_labels[item_labels['popularity_label'] == 1]
     available_ids = filtered_items['item_id:token'].tolist()
     
-    # Count how many items are in each row of the batch
-    nonzero_counts = (item_seq_len != 0).sum(dim=1).tolist()
+    # Get batch size
+    batch_size = item_seq_len.shape[0]
     selected_item_ids = []
 
-    for count in nonzero_counts:
-        sampled = pd.Series(available_ids).sample(n=count, replace=True).tolist()
-        
-        # Pad with 0s if needed to reach length 50
-        if len(sampled) < n:
-            sampled += [0] * (n - len(sampled))
-        else:
-            sampled = sampled[:n]  # In case count > 50 for any reason
-
+    for _ in range(batch_size):
+        sampled = pd.Series(available_ids).sample(n=n, replace=True).tolist()
         selected_item_ids.append(sampled)
 
-    # Convert to tensor of shape (batch_size, 50)
+    # Convert to tensor of shape (batch_size, n)
     selected_tensor = torch.tensor(selected_item_ids)
     return selected_tensor
 
-
 def make_items_unpopular(item_seq_len, dataset, n):
-
     item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels.csv")
     
-    # Filter rows where popularity_label == -1
+    # Filter rows where popularity_label == 1
     filtered_items = item_labels[item_labels['popularity_label'] == -1]
     available_ids = filtered_items['item_id:token'].tolist()
     
-    # Count how many items are in each row of the batch
-    nonzero_counts = (item_seq_len != 0).sum(dim=1).tolist()
+    # Get batch size
+    batch_size = item_seq_len.shape[0]
     selected_item_ids = []
 
-    for count in nonzero_counts:
-        sampled = pd.Series(available_ids).sample(n=count, replace=True).tolist()
-        
-        # Pad with 0s if needed to reach length 50
-        if len(sampled) < n:
-            sampled += [0] * (n - len(sampled))
-        else:
-            sampled = sampled[:n]  # In case count > 50 for any reason
-
+    for _ in range(batch_size):
+        sampled = pd.Series(available_ids).sample(n=n, replace=True).tolist()
         selected_item_ids.append(sampled)
 
-    # Convert to tensor of shape (batch_size, 50)
+    # Convert to tensor of shape (batch_size, n)
     selected_tensor = torch.tensor(selected_item_ids)
-
     return selected_tensor
 
 
 
+def make_labels(dataset=None,
+                sep="\t",
+                alpha=0.9,
+                holdout_k=2):
+    """
+    Create a single `label` per user (-1, 0, 1) based on the user's last state (excluding the last 2 interactions) and save it.
+    
+    Parameters
+    ----------
+    in_path : str
+        Input file path.
+    out_path : str
+        Output file path.
+    sep : str
+        Column separator for the input file.
+    alpha : float
+        Recency decay base (0.9 in the formula).
+    holdout_k : int
+        Number of most recent interactions per user to ignore when computing popularity & scores.
+    """
+      
+    out_path=rf"./dataset/{dataset}/yoochoose-clicks.inter.new"
+    in_path=rf"./dataset/{dataset}/yoochoose-clicks.inter"
+    # ---- Load ----------------------------------------------------------------
+    cols = ["user_id:token", "item_id:token", "timestamp:float"]
+    df = pd.read_csv(
+        in_path,
+        sep=sep,
+        header=0,  # file already contains columns like user_id:token, item_id:token, timestamp:float
+        low_memory=False,
+        dtype={"user_id:token": "string",
+               "item_id:token": "string",
+               "timestamp:float": "float64"}
+    )
+    
+    # Ensure proper dtypes (optional but helpful)
+    df["user_id:token"] = df["user_id:token"].astype(str)
+    df["item_id:token"] = df["item_id:token"].astype(str)
+    df["timestamp:float"] = df["timestamp:float"].astype(float)
+    
+    # Sort once for all subsequent ops
+    df = df.sort_values(["user_id:token", "timestamp:float"]).reset_index(drop=True)
+    
+    # ---- Identify each user's last k interactions ----------------------------
+    # Rank descending within user, so most recent = 1
+    rdesc = df.groupby("user_id:token")["timestamp:float"].rank(method="first", ascending=False)
+    holdout_mask = rdesc <= holdout_k
+    
+    # Subset used for popularity & score calculation
+    calc_df = df.loc[~holdout_mask].copy()
+    
+    # ---- Popularity labels p_i -----------------------------------------------
+    # Count interactions per item on calc_df
+    item_counts = calc_df["item_id:token"].value_counts()
+    n_items = len(item_counts)
+    top_n = int(np.ceil(0.2 * n_items))
+    bot_n = int(np.floor(0.2 * n_items))
+    
+    # Items sorted by count
+    sorted_items = item_counts.sort_values()
+    bottom_items = set(sorted_items.index[:bot_n])
+    top_items = set(sorted_items.index[-top_n:])
+    
+    # Map to {-1,0,1}
+    pop_map = {iid: (-1 if iid in bottom_items else (1 if iid in top_items else 0))
+               for iid in item_counts.index}
+    
+    calc_df["p_i"] = calc_df["item_id:token"].map(pop_map).fillna(0).astype(int)
+    
+    # ---- Recency n (0 = most recent after holdout) ---------------------------
+    # Sort descending by timestamp within user, then enumerate
+    calc_df = calc_df.sort_values(["user_id:token", "timestamp:float"], ascending=[True, False])
+    calc_df["n"] = calc_df.groupby("user_id:token").cumcount()  # 0,1,2,...
+    
+    # ---- Denominator: number of interactions per user (in calc_df) ----------
+    calc_df["num_user_interactions"] = calc_df.groupby("user_id:token")["item_id:token"].transform("size")
+    
+    # ---- Score and label -----------------------------------------------------
+    calc_df["score"] = (alpha ** calc_df["n"]) * calc_df["p_i"] / calc_df["num_user_interactions"]
+    calc_df["label"] = np.sign(calc_df["score"]).astype(int)
+    
+    # ---- Collapse to a single label per user ---------------------------------
+    # "Last state" = the most recent interaction remaining after removing the holdout_k ones
+    user_labels = calc_df.loc[calc_df["n"] == 0, ["user_id:token", "label"]].rename(columns={"label": "user_label"})
+    label_map = dict(zip(user_labels["user_id:token"], user_labels["user_label"]))
+    
+    # ---- Assign single label per user (including holdouts) ----------------------
+    df["label:int"] = df["user_id:token"].map(label_map).fillna(0).astype("int8")
+
+    # keep column order tidy
+    df = df[["user_id:token", "item_id:token", "timestamp:float", "label:int"]]
+    
+    # ---- Save ----------------------------------------------------------------
+    df.to_csv(out_path, sep=sep, index=False, header=True)

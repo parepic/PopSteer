@@ -38,7 +38,7 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
+        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
         # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
@@ -156,6 +156,9 @@ class SAE(nn.Module):
             }
             for j in range(self.hidden_dim)
         }
+        self.steer_vec = None        # cached steering vector
+        self._steer_ready = False    # flag
+
         return  
   
     def get_dead_latent_ratio(self, need_update=0):
@@ -250,28 +253,22 @@ class SAE(nn.Module):
                     data["recommendations"].append(topk_indices.tolist())
      
 
-
-    def dampen_neurons(self, pre_acts, dataset=None):
-        # Early exit
-        if getattr(self, "N", None) in (None, 0):
-            return pre_acts
-
+    def _build_steering_vector(self, dataset):
+        """Do the heavy CSV reads + weight math once."""
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
 
-        combined_neurons = (
-            [(idx, d, "unpop") for idx, d in unpop_neurons] +
-            [(idx, d, "pop")   for idx, d in pop_neurons]
-        )
-        combined_sorted = sorted(combined_neurons, key=lambda x: abs(x[1]), reverse=True)
+        combined = ([(i, d, "unpop") for i, d in unpop_neurons] +
+                    [(i, d, "pop")   for i, d in pop_neurons])
+        combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
         top_neurons = combined_sorted[: self.N]
 
         stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpopular.csv")
         stats_pop   = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_popular.csv")
 
         abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
-                                device=pre_acts.device, dtype=pre_acts.dtype)
+                                  device=self.device, dtype=self.dtype)
 
         def normalize_to_range(x, new_min, new_max):
             max_val = torch.max(x)
@@ -279,60 +276,30 @@ class SAE(nn.Module):
                 return torch.full_like(x, (new_min + new_max) / 2)
             return (x / max_val) * (new_max - new_min) + new_min
 
-        weights = normalize_to_range(abs_cohens, new_min=0, new_max=self.alpha)
+        weights = normalize_to_range(abs_cohens, 0, self.alpha)
 
-        for i, (neuron_idx, cohen, group) in enumerate(top_neurons):
+        steer = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
+
+        for i, (neuron_idx, _, group) in enumerate(top_neurons):
             w = weights[i]
-
-            vals = pre_acts[:, neuron_idx]
-
             if group == "unpop":
-                # only modify when activation > pop_mean
-                pop_mean = stats_pop.iloc[neuron_idx]["mean"]
-                pop_sd = stats_pop.iloc[neuron_idx]["mean"]
-
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
+                steer[neuron_idx] += w * unpop_sd
+            else:  # "pop"
+                pop_sd = stats_pop.iloc[neuron_idx]["sd"]
+                steer[neuron_idx] -= w * pop_sd
 
-                mask = vals < pop_mean
-                pre_acts[:, neuron_idx] += w * unpop_sd
+        self.steer_vec = steer
+        self._steer_ready = True
 
-            else:  # group == "pop"
-                # only modify when activation < unpop_mean
-                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
-                unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
-
-                pop_sd     = stats_pop.iloc[neuron_idx]["sd"]
-
-                mask = vals > unpop_mean
-                pre_acts[:, neuron_idx] -= w * pop_sd
-
-        return pre_acts
-     
-     
-    
-    def add_noise(self, pre_acts, std):
-        pre_actss = pre_acts.detach().cpu()
-        if self.N is None:
+    # --- CHANGED ---
+    def dampen_neurons(self, pre_acts, dataset=None):
+        if getattr(self, "N", None) in (None, 0):
             return pre_acts
+        if not self._steer_ready:
+            self._build_steering_vector(dataset)
+        return pre_acts + self.steer_vec
 
-        # pick N unique neurons
-        top_neurons = random.sample(range(self.hidden_dim), int(self.N))
-
-        # add Gaussian noise to each selected neuron
-        # pre_acts shape: (batch_size, hidden_dim)
-        batch_size = pre_actss.shape[0]
-        for idx in top_neurons:
-            # draw a vector of Gaussian noise
-            noise = np.random.normal(
-                loc=0.0,
-                scale=std,
-                size=(batch_size,)
-            )
-            pre_actss[:, idx] += noise
-
-        return pre_actss.to(self.device)
-     
-     
     def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None, dataset=None, pop_scores=None):
             sae_in = x - self.b_dec
             pre_acts1 = self.encoder(sae_in)
