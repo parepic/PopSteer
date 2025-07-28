@@ -34,7 +34,7 @@ if __name__ == "__main__":
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
     # create_item_popularity_csv("ml-1m", 0.2)
-    # plot_ndcg_vs_fairness(dataset="steamm",)
+    # plot_ndcg_vs_fairness(dataset="yelp2018", model="SASRec")
     # exit()
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", "-m", type=str, default="BPR", help="name of models")
@@ -103,10 +103,10 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_gift.pth",
-                # "load": "./saved/sasrec_yelp2018-16-48.pth",
+                "load": "./saved/sasrec_gift-16-32.pth",
                 "sae_scale_size": [32, 64],
                 "sae_k": [8, 32],
-                "learning_rate": 1e-3,
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "analyze": False,
