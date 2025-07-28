@@ -103,7 +103,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_yelp2018.pth",
-                "load": "./saved/sasrec_yelp2018-16-48.pth",
+                # "load": "./saved/sasrec_yelp2018-16-48.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [48, 64],
                 "learning_rate": 1e-3,
