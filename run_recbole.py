@@ -26,8 +26,8 @@ from recbole.data import create_item_popularity_csv
 
 if __name__ == "__main__":
     # keep_random_users(dataset="yahoo-music", x = 25000)
-    # remove_sparse_users_items(5, "steamm")
-    # exit()
+    remove_sparse_users_items(5, "Amazon_Gift_Cards")
+    exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
     # }
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 1.0],
+                "alpha": [1.5, 0.5],
                 "steer": [0, 1],
                 "analyze": True,
                 "tail_ratio": 0.2,
