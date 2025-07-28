@@ -1302,97 +1302,96 @@ def make_items_unpopular(item_seq_len, dataset, n):
 
 
 
+import pandas as pd
+import numpy as np
+
 def make_labels(dataset=None,
-                sep="\t",
+                sep="	",
                 alpha=0.9,
                 holdout_k=2):
     """
-    Create a single `label` per user (-1, 0, 1) based on the user's last state (excluding the last 2 interactions) and save it.
-    
-    Parameters
-    ----------
-    in_path : str
-        Input file path.
-    out_path : str
-        Output file path.
-    sep : str
-        Column separator for the input file.
-    alpha : float
-        Recency decay base (0.9 in the formula).
-    holdout_k : int
-        Number of most recent interactions per user to ignore when computing popularity & scores.
+    Create two labels:
+      1. `label:int`     -> single user-level label (-1,0,1) from the user's last state (excluding last `holdout_k` interactions).
+      2. `label_cur:int` -> per-interaction label (-1,0,1) computed for the *current* interaction using the same formula.
+
+    Everything is saved to `./dataset/{dataset}/yoochoose-clicks.inter.new` with headers.
     """
-      
-    out_path=rf"./dataset/{dataset}/yoochoose-clicks.inter.new"
-    in_path=rf"./dataset/{dataset}/yoochoose-clicks.inter"
+
+    out_path = rf"./dataset/{dataset}/yoochoose-clicks.inter.new"
+    in_path  = rf"./dataset/{dataset}/yoochoose-clicks.inter"
+
     # ---- Load ----------------------------------------------------------------
-    cols = ["user_id:token", "item_id:token", "timestamp:float"]
     df = pd.read_csv(
         in_path,
         sep=sep,
-        header=0,  # file already contains columns like user_id:token, item_id:token, timestamp:float
+        header=0,
         low_memory=False,
-        dtype={"user_id:token": "string",
-               "item_id:token": "string",
-               "timestamp:float": "float64"}
+        dtype={
+            "user_id:token": "string",
+            "item_id:token": "string",
+            "timestamp:float": "float64"
+        }
     )
-    
-    # Ensure proper dtypes (optional but helpful)
-    df["user_id:token"] = df["user_id:token"].astype(str)
-    df["item_id:token"] = df["item_id:token"].astype(str)
-    df["timestamp:float"] = df["timestamp:float"].astype(float)
-    
+
     # Sort once for all subsequent ops
     df = df.sort_values(["user_id:token", "timestamp:float"]).reset_index(drop=True)
-    
+
     # ---- Identify each user's last k interactions ----------------------------
-    # Rank descending within user, so most recent = 1
     rdesc = df.groupby("user_id:token")["timestamp:float"].rank(method="first", ascending=False)
     holdout_mask = rdesc <= holdout_k
-    
-    # Subset used for popularity & score calculation
+
+    # Data used to compute popularity & scores
     calc_df = df.loc[~holdout_mask].copy()
-    
+
     # ---- Popularity labels p_i -----------------------------------------------
-    # Count interactions per item on calc_df
     item_counts = calc_df["item_id:token"].value_counts()
     n_items = len(item_counts)
     top_n = int(np.ceil(0.2 * n_items))
     bot_n = int(np.floor(0.2 * n_items))
-    
-    # Items sorted by count
+
     sorted_items = item_counts.sort_values()
     bottom_items = set(sorted_items.index[:bot_n])
-    top_items = set(sorted_items.index[-top_n:])
-    
-    # Map to {-1,0,1}
+    top_items    = set(sorted_items.index[-top_n:])
+
     pop_map = {iid: (-1 if iid in bottom_items else (1 if iid in top_items else 0))
                for iid in item_counts.index}
-    
+
     calc_df["p_i"] = calc_df["item_id:token"].map(pop_map).fillna(0).astype(int)
-    
+
     # ---- Recency n (0 = most recent after holdout) ---------------------------
-    # Sort descending by timestamp within user, then enumerate
     calc_df = calc_df.sort_values(["user_id:token", "timestamp:float"], ascending=[True, False])
-    calc_df["n"] = calc_df.groupby("user_id:token").cumcount()  # 0,1,2,...
-    
-    # ---- Denominator: number of interactions per user (in calc_df) ----------
+    calc_df["n"] = calc_df.groupby("user_id:token").cumcount()
+
+    # ---- Score and labels ----------------------------------------------------
     calc_df["num_user_interactions"] = calc_df.groupby("user_id:token")["item_id:token"].transform("size")
-    
-    # ---- Score and label -----------------------------------------------------
     calc_df["score"] = (alpha ** calc_df["n"]) * calc_df["p_i"] / calc_df["num_user_interactions"]
-    calc_df["label"] = np.sign(calc_df["score"]).astype(int)
-    
-    # ---- Collapse to a single label per user ---------------------------------
-    # "Last state" = the most recent interaction remaining after removing the holdout_k ones
-    user_labels = calc_df.loc[calc_df["n"] == 0, ["user_id:token", "label"]].rename(columns={"label": "user_label"})
+    calc_df["label_cur"] = np.sign(calc_df["score"]).astype(int)  # per-interaction label
+
+    # ---- Single user label from last state ----------------------------------
+    user_labels = (
+        calc_df.loc[calc_df["n"] == 0, ["user_id:token", "label_cur"]]
+               .rename(columns={"label_cur": "user_label"})
+    )
     label_map = dict(zip(user_labels["user_id:token"], user_labels["user_label"]))
-    
-    # ---- Assign single label per user (including holdouts) ----------------------
-    df["label:int"] = df["user_id:token"].map(label_map).fillna(0).astype("int8")
+
+    # ---- Merge per-interaction labels back (including holdouts -> 0) ---------
+    df = df.merge(
+        calc_df[["user_id:token", "item_id:token", "timestamp:float", "label_cur"]],
+        on=["user_id:token", "item_id:token", "timestamp:float"],
+        how="left"
+    )
+    df["label_cur:token"] = df["label_cur"].fillna(0).astype("int8")
+    df.drop(columns=["label_cur"], inplace=True)
+
+    # ---- Assign single label per user (including holdouts) ------------------
+    df["label:token"] = df["user_id:token"].map(label_map).fillna(0).astype("int8")
 
     # keep column order tidy
-    df = df[["user_id:token", "item_id:token", "timestamp:float", "label:int"]]
-    
+    df = df[["user_id:token", "item_id:token", "timestamp:float", "label:token", "label_cur:token"]]
+
     # ---- Save ----------------------------------------------------------------
     df.to_csv(out_path, sep=sep, index=False, header=True)
+
+# Example usage:
+# make_labels(dataset="yoochoose-clicks")
+# make_labels("yoochoose.inter", "yoochoose.inter.new", sep="\t")
