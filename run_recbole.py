@@ -102,10 +102,10 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_yelp2018.pth",
+                "base_path": "./saved/sasrec_gift.pth",
                 # "load": "./saved/sasrec_yelp2018-16-48.pth",
-                "sae_scale_size": [32, 96],
-                "sae_k": [48, 64],
+                "sae_scale_size": [32, 64],
+                "sae_k": [8, 32],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
