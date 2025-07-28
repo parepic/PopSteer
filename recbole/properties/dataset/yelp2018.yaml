@@ -29,7 +29,7 @@ relation_kg_num_interval: ~     # (str) Relation interval for filtering kg, such
 
 # Selectively Loading
 load_col:                       # (dict) The suffix of atomic files: (list) field names to be loaded.
-    inter: [user_id, item_id, rating, timestamp]
+    inter: [user_id, item_id, rating, timestamp, label]
 unload_col: ~                   # (dict) The suffix of atomic files: (list) field names NOT to be loaded.
 unused_col: ~                   # (dict) The suffix of atomic files: (list) field names which are loaded but not used.
 
