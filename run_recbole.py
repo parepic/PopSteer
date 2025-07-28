@@ -26,8 +26,8 @@ from recbole.data import create_item_popularity_csv
 
 if __name__ == "__main__":
     # keep_random_users(dataset="yahoo-music", x = 25000)
-    remove_sparse_users_items(5, "Amazon_Gift_Cards")
-    exit()
+    # remove_sparse_users_items(5, "Amazon_Gift_Cards")
+    # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
     # }
