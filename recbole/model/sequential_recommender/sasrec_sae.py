@@ -21,6 +21,7 @@ class SASRec_SAE(SASRec):
         model_path = config["base_path"]
         checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
         self.load_state_dict(checkpoint['state_dict'])
+        
         self.sae_module_i = SAE(config, side="item")
         self.sae_module_u = SAE(config, side="user")
         self.a1 = 0.9
@@ -300,17 +301,19 @@ class SAE(nn.Module):
                 pop_sd = stats_pop.iloc[neuron_idx]["sd"]
                 steer[neuron_idx] -= w * pop_sd
 
-        self.steer_vec = steer
+        self.steer_vec = steer.to(self.device)
         self._steer_ready = True
 
 
 
-    # --- CHANGED ---
     def dampen_neurons(self, pre_acts, dataset=None):
         if getattr(self, "N", None) in (None, 0):
             return pre_acts
         if not self._steer_ready:
             self._build_steering_vector(dataset)
+        if self.steer_vec.device != pre_acts.device:
+            self.steer_vec = self.steer_vec.to(pre_acts.device)
+
         return pre_acts + self.steer_vec
 
     def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None, dataset=None, pop_scores=None):
