@@ -22,7 +22,6 @@ class SASRec_SAE(SASRec):
         checkpoint = torch.load(model_path,
                                 map_location=self.device,   # 'cuda:0' expected
                                 weights_only=False)
-        print(self.device, " amciq ")
         self.sae_module_i = SAE(config, side="item")
         self.sae_module_u = SAE(config, side="user")
         self.a1 = 0.9
