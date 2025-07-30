@@ -13,3 +13,4 @@ venv/
 docs/
 settings.json
 dataset/
+saved/

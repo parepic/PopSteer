@@ -15,10 +15,12 @@ def tune(args):
         config_dict = {
             "alpha": [0, 0],
             "steer": [0, 1],
+            "steer_dir": [-1, -1],
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
-            "metrics": ["Recall","MRR","NDCG","Hit","SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]       
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
+                            "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -28,43 +30,56 @@ def tune(args):
     trainer.eval_collector.data_collect(train_data)
     # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     # change2 = [0.0]
-    change2= [0.0, 0.25, 0.5, 0.75, 1.0]
-    change1= [0.0]
 
-
+    change1= [-1]
+    change2 = [0.0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5]
     metric_keys = [
         'ndcg@10',
-        'hit@10',
-        'deep_lt_coverage@10',
         'giniindex@10',
         'averagepopularity@10',
         'itemcoverage@10',
-        'ndcgmid@10',
         'ndcgtail@10',
         'ndcghead@10',
-    ]
+        'ndcgmid@10',
+        'ndcgusertail@10',
+        'ndcgusermid@10',
+        'ndcguserhead@10'
+        ]
 
     SHORT_NAMES = {
         'ndcg@10': 'NDCG@10',
-        'hit@10': 'HIT@10',
-        'deep_lt_coverage@10': 'DLTC@10',
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
         'itemcoverage@10': 'COV@10',
         'ndcgtail@10':'NDCGTAIL@10',
         'ndcgmid@10':'NDCGMID@10',
-        'ndcghead@10':'NDCGHEAD@10'
+        'ndcghead@10':'NDCGHEAD@10',
+        'ndcgusertail@10':'NDCGTAIL_U@10',
+        'ndcgusermid@10':'NDCGMID_U@10',
+        'ndcguserhead@10':'NDCGHEAD_U@10'
     }
 
     rows_raw = []
-    for a_i in change1:
-        for a_u in change2:
-            trainer.model.recommendation_count = torch.zeros(trainer.model.n_items, dtype=torch.long, device=trainer.device)
-            trainer.model.sae_module_i.alpha = a_i
-            trainer.model.sae_module_u.alpha = a_u
-            trainer.model.sae_module_i._steer_ready = False
-            trainer.model.sae_module_u._steer_ready = False
 
+    trainer.model.sae_module_u.alpha = 0.0
+    test_result = trainer.evaluate(
+        valid_data,
+        model_file=args.path,
+        load_best_model=False,
+        show_progress=config["show_progress"]
+    )
+    trainer.model.restore_item_e = None
+    rows_raw.append({
+        'alpha_u': 0,
+        'alpha_i': 0,
+        **{k: test_result[k] for k in metric_keys}
+    })
+
+    for c1 in change1:
+        for c2 in change2:
+            trainer.model.sae_module_u.steer_dir = c1
+            trainer.model.sae_module_u.alpha = c2
+            trainer.model.sae_module_u._steer_ready = False
 
             test_result = trainer.evaluate(
                 valid_data,
@@ -74,8 +89,8 @@ def tune(args):
             )
             trainer.model.restore_item_e = None
             rows_raw.append({
-                'alpha_u': a_u,
-                'alpha_i': a_i,
+                'alpha_u': c2,
+                'alpha_i': c1,
                 **{k: test_result[k] for k in metric_keys}
             })
 
@@ -130,8 +145,10 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-new.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-hybrid.csv'
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
+                   'ndcguserhead@10',  'ndcgusermid@10',  'ndcgusertail@10'
+                  ]
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -141,13 +158,15 @@ def tune(args):
                 "alpha_u": r["alpha_u"],
                 "alpha_i": r["alpha_i"],
                 "ndcg": r["ndcg@10"],
-                "dltc@10": r["deep_lt_coverage@10"],
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"]
+                'ndcghead@10': r["ndcghead@10"],
+                'ndcguserhead@10': r["ndcguserhead@10"],
+                'ndcgusermid@10': r["ndcgusermid@10"],
+                'ndcgusertail@10': r["ndcgusertail@10"]
             })
 
     return rows_raw, formatted_rows
@@ -159,7 +178,8 @@ def tune_FAIR(args):
     if args.config_json is None:
         config_dict = {
             "alpha": [0.5, 0.5],
-            "metrics": ["Recall","MRR","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]       
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
+                            "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -179,26 +199,28 @@ def tune_FAIR(args):
 
     metric_keys = [
         'ndcg@10',
-        'hit@10',
-        'deep_lt_coverage@10',
         'giniindex@10',
         'averagepopularity@10',
         'itemcoverage@10',
-        'ndcgmid@10',
         'ndcgtail@10',
         'ndcghead@10',
-    ]
+        'ndcgmid@10',
+        'ndcgusertail@10',
+        'ndcgusermid@10',
+        'ndcguserhead@10'
+        ]
 
     SHORT_NAMES = {
         'ndcg@10': 'NDCG@10',
-        'hit@10': 'HIT@10',
-        'deep_lt_coverage@10': 'DLTC@10',
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
         'itemcoverage@10': 'COV@10',
         'ndcgtail@10':'NDCGTAIL@10',
         'ndcgmid@10':'NDCGMID@10',
-        'ndcghead@10':'NDCGHEAD@10'
+        'ndcghead@10':'NDCGHEAD@10',
+        'ndcgusertail@10':'NDCGTAIL_U@10',
+        'ndcgusermid@10':'NDCGMID_U@10',
+        'ndcguserhead@10':'NDCGHEAD_U@10'
     }
 
 
@@ -272,8 +294,10 @@ def tune_FAIR(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg", "mrr", "hit", "dltc@10", "avgpop@10", "gini@10", "cov@10"]
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-realfinal.csv'
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
+                   'ndcguserhead@10',  'ndcgusermid@10',  'ndcgusertail@10'
+                  ]
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -283,12 +307,15 @@ def tune_FAIR(args):
                 "alpha_u": r["alpha_u"],
                 "alpha_i": r["alpha_i"],
                 "ndcg": r["ndcg@10"],
-                "mrr": r["mrr@10"],
-                "hit": r["hit@10"],
-                "dltc@10": r["deep_lt_coverage@10"],
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
+                'ndcgtail@10': r["ndcgtail@10"],
+                'ndcgmid@10': r["ndcgmid@10"],
+                'ndcghead@10': r["ndcghead@10"],
+                'ndcguserhead@10': r["ndcguserhead@10"],
+                'ndcgusermid@10': r["ndcgusermid@10"],
+                'ndcgusertail@10': r["ndcgusertail@10"]
             })
 
     return rows_raw, formatted_rows
