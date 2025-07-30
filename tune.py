@@ -193,11 +193,11 @@ def tune_FAIR(args):
         'giniindex@10',
         'averagepopularity@10',
         'itemcoverage@10',
+        'itemcoverage@10',
         'ndcgtail@10',
         'ndcghead@10',
-        'ndcgmid@10',
-        'ndcgusertail@10',
-    ]
+        'ndcgmid@10'
+     ]
 
     SHORT_NAMES = {
         'ndcg@10':  'NDCG@10',
