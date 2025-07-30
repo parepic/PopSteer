@@ -64,7 +64,7 @@ def tune(args):
     # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     # change2 = [0.0]
 
-    change1= [0]
+    change1= [1]
     change2 = [0.0, 0.5, 1, 1.5, 2.0, 3.0, 4.0]
 
 
@@ -198,7 +198,7 @@ def tune_FAIR(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
 
-    change1 = [0.6]
+    change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
     change2 = [0.01, 0.05, 0.1]
 
     # --- prepare header printing ---
