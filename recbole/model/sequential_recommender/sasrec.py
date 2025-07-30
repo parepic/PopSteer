@@ -62,7 +62,7 @@ class SASRec(SequentialRecommender):
         self.item_embedding = nn.Embedding(
             self.n_items, self.hidden_size, padding_idx=0
         )
-
+        print("suka", self.device)
         self.dataset = config["dataset"]
 
         

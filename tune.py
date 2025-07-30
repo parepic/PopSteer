@@ -193,7 +193,7 @@ def tune_FAIR(args):
         'giniindex@10',
         'averagepopularity@10',
         'itemcoverage@10',
-        'itemcoverage@10',
+        'itemcoveragen@10',
         'ndcgtail@10',
         'ndcghead@10',
         'ndcgmid@10'

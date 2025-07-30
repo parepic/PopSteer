@@ -39,70 +39,59 @@ from recbole.utils import EvaluatorType
 
 
 class Deep_LT_Coverage(AbstractMetric):
-    r"""Deep_LT_Coverage computes the coverage of long-tail items.
+    r"""Deep_LT_Coverage computes the coverage of *long‑tail* items.
 
-    Tail items T are defined as those whose interaction counts cumulatively make up
-    the bottom `tail_ratio` fraction of ALL interactions in the training data
-    (e.g., 0.2 = bottom 20% of interactions). If `tail_ratio > 1`, items with
-    count <= tail_ratio are treated as tail items (legacy behavior).
+    *Long‑tail* items are read from ``item_popularity_labels.csv``:
+    every row whose **popularity_label** equals ``‑1`` is treated as a tail item.
 
     .. math::
         \mathrm{Deep\_LT\_Coverage@K} =
         \frac{\left| \bigcup_{u \in U} R_u^K \cap T \right|}{|T|}
 
-    where :math:`R_u^K` is the top-K recommendation list for user :math:`u`.
+    where :math:`R_u^K` is the top‑K recommendation list for user :math:`u`
+    and :math:`T` is the long‑tail item set.
 
-    Note:
-        Set 'tail_ratio' in the config. Defaults to 0.1 if missing or invalid.
+    **Config options**
+
+    ``topk``                     – list/tuple of K values  
+    ``data_path`` & ``dataset``  – RecBole standard keys (used to locate the CSV)  
+    ``popularity_labels_path``   – *optional* manual path override
     """
 
     metric_type = EvaluatorType.RANKING
-    metric_need = ["rec.items", "data.count_items"]
+    metric_need = ["rec.items"]          # no longer need count_items
 
     def __init__(self, config):
         super().__init__(config)
-        self.topk = config["topk"]
-        self.tail = 0.1
-        if self.tail is None or self.tail <= 0:
-            self.tail = 0.1
+        self.config = config
+        self.topk   = config["topk"]
+
+        # -------- locate & read CSV once --------
+        csv_path = rf"./dataset/{config["dataset"]}/item_popularity_labels.csv"
+        df = pd.read_csv(csv_path, usecols=["item_id:token", "popularity_label"])
+        self.tail_items = set(
+            df.loc[df["popularity_label"] == -1, "item_id:token"]
+              .astype(int)                                     # ← cast to int if ids are numeric
+              .tolist()
+        )
+
+        if not self.tail_items:
+            raise ValueError(
+                f"No items with popularity_label == -1 found in {csv_path}"
+            )
 
     # -------- helpers --------
     def used_info(self, dataobject):
-        """Fetch recommendation matrix and item interaction counts."""
+        """Fetch only the recommendation matrix (item ids as ints)."""
         item_matrix = dataobject.get("rec.items")
-        count_items = dataobject.get("data.count_items")
-        return item_matrix.numpy(), dict(count_items)
-
-    def _build_tail_set(self, count_items: dict):
-        """Return the set of tail item IDs according to the definition."""
-        if self.tail > 1:  # absolute threshold on count
-            return {item for item, cnt in count_items.items() if cnt <= self.tail}
-
-        # cumulative bottom share of interactions
-        sorted_items = sorted(count_items.items(), key=lambda kv: (kv[1], kv[0]))
-        total_inter = sum(cnt for _, cnt in sorted_items)
-        cutoff = self.tail * total_inter
-
-        cum = 0
-        tail = set()
-        for item, cnt in sorted_items:
-            if cum >= cutoff and tail:
-                break
-            tail.add(item)
-            cum += cnt
-        return tail
-
+        return item_matrix.numpy()
 
     # -------- core metric --------
     def calculate_metric(self, dataobject):
-        item_matrix, count_items = self.used_info(dataobject)
-        tail_items = self._build_tail_set(count_items)
-        if not tail_items:
-            # Avoid div-by-zero; define coverage as 0 if no tail items
-            return {f"deep_lt_coverage@{k}": 0.0 for k in self.topk}
+        item_matrix = self.used_info(dataobject)
+        tail_lookup = self.tail_items
 
-        # Precompute a flattened view for union over users efficiently
-        metric_values = self._coverage_over_k(item_matrix, tail_items)
+        metric_values = self._coverage_over_k(item_matrix, tail_lookup)
 
         # Pack results
         metric_dict = {}
@@ -110,36 +99,29 @@ class Deep_LT_Coverage(AbstractMetric):
             metric_dict[f"deep_lt_coverage@{k}"] = round(cov, self.decimal_place)
         return metric_dict
 
-
-    def _coverage_over_k(self, item_matrix: np.ndarray, tail_items: set):
+    # -------- implementation --------
+    def _coverage_over_k(self, item_matrix: np.ndarray, tail_lookup: set):
         """
         Compute coverage@K for all requested K in one pass.
-        Returns a list aligned with self.topk.
+        Returns values in the original order of self.topk.
         """
         topk_sorted = sorted(self.topk)
-        max_k = topk_sorted[-1]
-
-        # Clip to max_k
-        clipped = item_matrix[:, :max_k]
-
-        # We'll compute union incrementally
-        tail_items = np.array(list(tail_items))
-        tail_lookup = set(tail_items)  # for pythonic membership checks
+        max_k       = topk_sorted[-1]
+        clipped     = item_matrix[:, :max_k]
 
         coverage_vals = {}
         seen_tail = set()
 
         for k in range(1, max_k + 1):
-            new_items = np.unique(clipped[:, k - 1])  # column k-1 across users
-            for it in new_items:
-                if it in tail_lookup:
-                    seen_tail.add(it)
+            new_items = np.unique(clipped[:, k - 1])          # column k‑1 across users
+            seen_tail.update(it for it in new_items if it in tail_lookup)
 
             if k in topk_sorted:
                 coverage_vals[k] = len(seen_tail) / len(tail_lookup)
 
-        # return in original order
+        # return in original self.topk order
         return [coverage_vals[k] for k in self.topk]
+
 
 
 class SAE_Loss(AbstractMetric):
