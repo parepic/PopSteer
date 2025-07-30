@@ -15,6 +15,7 @@ recbole.evaluator.collector
 from recbole.evaluator.register import Register
 import torch
 import copy
+import pandas as pd
 
 
 class DataStruct(object):
@@ -190,6 +191,17 @@ class Collector(object):
         if self.register.need("rec.score"):
 
             self.data_struct.update_tensor("rec.score", scores_tensor)
+            
+        if self.register.need("data.user_label"):
+            csv_path = rf"./dataset/{self.config["dataset"]}/user_popularity_labels.csv"
+            m = pd.read_csv(csv_path, usecols=["user_id:token", "popularity_label"])\
+                .set_index("user_id:token")["popularity_label"].to_dict()
+            tensors = torch.tensor([m.get((u), 0) for u in interaction["user_id"].to(self.device).tolist()],
+                        dtype=torch.int8, device=self.device)
+            self.data_struct.update_tensor(
+                "data.user_label", tensors
+            )
+
 
         if self.register.need("data.label"):
             self.label_field = self.config["LABEL_FIELD"]
@@ -242,7 +254,7 @@ class Collector(object):
             if key != "data.num_items" and key != "data.count_items" and key != "data.num_items" and key != "data.num_users":
                 self.data_struct._data_dict[key] = self.data_struct._data_dict[key].cpu()
         returned_struct = copy.deepcopy(self.data_struct)
-        for key in ["rec.topk", "rec.meanrank", "rec.score", "rec.items", "data.label", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"]:
+        for key in ["rec.topk", "rec.meanrank", "rec.score", "rec.items", "data.label", "data.user_label", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"]:
             if key in self.data_struct:
                 del self.data_struct[key]
         return returned_struct

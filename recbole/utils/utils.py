@@ -783,104 +783,146 @@ import math
 
 
 def plot_ndcg_vs_fairness(
-    dataset,
-    model="LightGCN",
-    files=None,
-    show=True,
-    facet=True,   # True = 3 side-by-side axes; False = single axis
+    dataset: str,
+    model: str = "LightGCN",
+    alpha_i: int | None = None,   # << NEW
+    show: bool = True,
+    facet: bool = True,
 ):
     """
-    Plot ndcghead/mid/tail@10 vs overall ndcg for each result file.
-    Color/marker identify the file; each slice is a separate facet by default.
+    Four plots for one dataset/model:
+        • Head/Mid/Tail NDCG@10 vs overall NDCG@10           (3‑facet line figure)
+        • Overall NDCG@10 vs avgpop@10                       (scatter)
+        • Overall NDCG@10 vs gini@10                         (scatter)
+        • Overall NDCG@10 vs cov@10                          (scatter)
+
+    Parameters
+    ----------
+    dataset : str
+    model   : str
+    alpha_i : int | None
+        If provided, we keep only rows in the *User‑side* CSV whose `alpha_i`
+        column equals this integer **plus** the very first row (baseline).
+        Other files are not filtered.
+    show    : bool
+    facet   : bool
+
+    Returns
+    -------
+    figs : dict[str, matplotlib.figure.Figure]
+           keys: "slice", "avgpop@10", "gini@10", "cov@10"
     """
-    if dataset is None:
-        raise ValueError("Please provide dataset name (e.g., 'lastfm').")
+    if not dataset:
+        raise ValueError("Please provide a dataset name, e.g. dataset='lastfm'.")
 
-    if files is None:
-        files = {
-            "User-side": rf"dataset/{dataset}/results/{model}_user_{dataset}-neww.csv",
-            "Item-side": rf"dataset/{dataset}/results/{model}_item_{dataset}-new.csv",
-            "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-new.csv",
-            "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-new.csv",
-        }
+    # ------------------------------------------------------------------ paths
+    files = {
+        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-realfinal.csv",
+        "Hybrid":  rf"dataset/{dataset}/results/{model}_user_{dataset}-hybrid.csv",
+        "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-realfinal.csv",
+        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-realfinal.csv",
+    }
 
-    def load_csv(path):
+    # -------------------------------------------------------------- csv loader
+    def load_rows(path):
+        """Return list[dict] with every numeric column we recognise."""
         if not os.path.isfile(path):
             return []
         rows = []
-        with open(path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    rows.append({
-                        "ndcg":          float(row["ndcg"]),
-                        "ndcghead@10":   float(row.get("ndcghead@10", "nan")),
-                        "ndcgmid@10":    float(row.get("ndcgmid@10", "nan")),
-                        "ndcgtail@10":   float(row.get("ndcgtail@10", "nan")),
-                    })
-                except (KeyError, ValueError):
-                    continue
+        with open(path, newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                numeric_row = {}
+                for k, v in r.items():
+                    try:
+                        numeric_row[k] = float(v)
+                    except (ValueError, TypeError):
+                        numeric_row[k] = v       # keep as‑is for non‑numeric cols
+                rows.append(numeric_row)
         return rows
 
-    data = {label: load_csv(p) for label, p in files.items()}
+    data = {lbl: load_rows(p) for lbl, p in files.items()}
 
-    slice_keys = ["ndcghead@10", "ndcgmid@10", "ndcgtail@10"]
-    slice_titles = {
-        "ndcghead@10": "Head NDCG@10",
-        "ndcgmid@10":  "Mid NDCG@10",
-        "ndcgtail@10": "Tail NDCG@10",
-    }
+    # ------------------ NEW: filter user‑side rows by alpha_i (keep first row)
+    if alpha_i is not None and data["User-side"]:
+        first = data["User-side"][:1]   # always keep row 0
+        rest  = [
+            r for r in data["User-side"][1:]
+            if "alpha_i" in r
+               and isinstance(r["alpha_i"], (int, float, str))
+               and int(float(r["alpha_i"])) == alpha_i
+        ]
+        data["User-side"] = first + rest
 
-    # Style maps
-    colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
+    # ------------------------------------------- style maps after filtering
+    colours = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
     markers = ["o", "s", "^", "D", "P", "X"]
-    file_list = [k for k,v in data.items() if v]
-    file_color  = {f: colors[i % len(colors)]  for i, f in enumerate(file_list)}
-    file_marker = {f: markers[i % len(markers)] for i, f in enumerate(file_list)}
+    labels_present = [lbl for lbl, rows in data.items() if rows]
+    col_map = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
+    mrk_map = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
+
+    figs = {}                         # where we collect the 4 figures
+
+    # ---------------------------------------------------------------- slice plot
+    slice_keys   = ["ndcghead@10", "ndcgmid@10", "ndcgtail@10"]
+    slice_titles = {"ndcghead@10": "Head NDCG@10",
+                    "ndcgmid@10":  "Mid NDCG@10",
+                    "ndcgtail@10": "Tail NDCG@10"}
 
     if facet:
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
+        fig_slice, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
         axes = np.atleast_1d(axes)
     else:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        axes = [ax] * 3  # reuse same axis
+        fig_slice, ax = plt.subplots(figsize=(6, 4))
+        axes = [ax] * 3
 
     for ax, sk in zip(axes, slice_keys):
-        for f_label, rows in data.items():
-            if not rows:
+        for lbl, rows in data.items():
+            pts = [(r.get("ndcg"), r.get(sk)) for r in rows
+                   if r.get("ndcg") is not None and r.get(sk) is not None and not math.isnan(r[sk])]
+            if not pts:
                 continue
-            rows_sorted = sorted(
-                [(r["ndcg"], r[sk]) for r in rows if not math.isnan(r[sk])],
-                key=lambda t: t[0]
-            )
-            if not rows_sorted:
-                continue
-            xs, ys = zip(*rows_sorted)
+            xs, ys = zip(*sorted(pts, key=lambda t: t[0]))
             ax.plot(xs, ys,
-                    linestyle="-",
-                    linewidth=1,
-                    marker=file_marker[f_label],
-                    markersize=6,
-                    color=file_color[f_label],
-                    alpha=0.9,
-                    label=f_label if sk == "ndcghead@10" else "_nolegend_")
+                    marker=mrk_map[lbl], color=col_map[lbl],
+                    linewidth=1, markersize=6,
+                    label=lbl if sk == "ndcghead@10" else "_nolegend_")
         ax.set_xlabel("NDCG@10 (overall)")
         ax.set_ylabel(slice_titles[sk])
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
         if facet:
             ax.set_title(slice_titles[sk])
 
-    # One legend total
     axes[0].legend(title="File", fontsize=8, frameon=True)
+    fig_slice.suptitle(f"{dataset}: NDCG(head/mid/tail) vs overall NDCG@10", y=1.02 if facet else 1.03)
+    fig_slice.tight_layout()
+    figs["slice"] = fig_slice
 
-    fig.suptitle(f"{dataset}: NDCG(head/mid/tail) vs Overall NDCG@10", y=1.02 if facet else 1.03)
-    fig.tight_layout()
+    # --------------------------------------------------- fairness scatter plots
+    fairness_specs = [("avgpop@10", "Average Popularity @10", "avgpop@10"),
+                      ("gini@10",   "Gini Index @10",         "gini@10"),
+                      ("cov@10",    "Coverage @10",           "cov@10")]
 
+    for metric_key, metric_title, dict_key in fairness_specs:
+        fig, ax = plt.subplots()
+        for lbl, rows in data.items():
+            xs = [r["ndcg"]     for r in rows if "ndcg" in r and dict_key in r]
+            ys = [r[dict_key]   for r in rows if "ndcg" in r and dict_key in r]
+            if not xs:
+                continue
+            ax.scatter(xs, ys, marker=mrk_map[lbl], label=lbl,
+                       edgecolors="none", alpha=0.85, color=col_map[lbl])
+        ax.set_xlabel("NDCG@10")
+        ax.set_ylabel(metric_title)
+        ax.set_title(f"{dataset}: NDCG@10 vs {metric_title}")
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
+        ax.legend()
+        figs[metric_key] = fig
+
+    # ------------------------------------------------------------ show / return
     if show:
         plt.show()
 
-    return fig
-
+    return figs
 
 import shutil
 
@@ -933,14 +975,14 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['item_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['tracks_id:token'].unique())} items.")
 
 
 
 def keep_random_users(
                       dataset: str,
                       x: int,
-                      user_col: str = "anonymous_user_id:token",
+                      user_col: str = "user_id:token",
                       sep: str = "\t",
                       seed: int = 42,
                       chunksize: int = 1_000_000):

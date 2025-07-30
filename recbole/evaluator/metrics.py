@@ -57,7 +57,7 @@ class Deep_LT_Coverage(AbstractMetric):
     """
 
     metric_type = EvaluatorType.RANKING
-    metric_need = ["rec.items", "data.count_items", "data.label"]
+    metric_need = ["rec.items", "data.count_items"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -415,7 +415,7 @@ class NDCGUserGroup(TopkMetric):
         If True, rows with zero relevant items are set to NaN (ignored in mean).
         If False, they are set to 0.0.
     """
-    metric_need = ["rec.topk", "data.label"]
+    metric_need = ["rec.topk", "data.user_label"]
 
     def __init__(self, config, user_label, name, skip_zero_den=False):
         super().__init__(config)
@@ -427,10 +427,10 @@ class NDCGUserGroup(TopkMetric):
         # parent provides pos_index (hits) and pos_len (#positives) for ALL users
         pos_index, pos_len = super().used_info(dataobject)
 
-        labels = dataobject.get("data.label")
+        labels = dataobject.get("data.user_label")
 
         if labels is None:
-            raise KeyError("`data.label` not found in dataobject. Add it to metric_need.")
+            raise KeyError("`data.user_label` not found in dataobject. Add it to metric_need.")
         if isinstance(labels, torch.Tensor):
             labels = labels.cpu().numpy()
 
@@ -484,17 +484,17 @@ class NDCGUserGroup(TopkMetric):
 
 class NDCGUserTail(NDCGUserGroup):
     def __init__(self, config):
-        super().__init__(config, user_label=1, name="ndcgusertail")
+        super().__init__(config, user_label=-1, name="ndcgusertail")
 
 
 class NDCGUserMid(NDCGUserGroup):
     def __init__(self, config):
-        super().__init__(config, user_label=2, name="ndcgusermid")
+        super().__init__(config, user_label=0, name="ndcgusermid")
 
 
 class NDCGUserHead(NDCGUserGroup):
     def __init__(self, config):
-        super().__init__(config, user_label=3, name="ndcguserhead")
+        super().__init__(config, user_label=1, name="ndcguserhead")
 
 
 

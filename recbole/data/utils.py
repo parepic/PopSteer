@@ -537,7 +537,7 @@ def create_samplers(config, dataset, built_datasets):
 
 
 
-def create_item_popularity_csv(dataset: str, p: float):
+def create_item_popularity_csv(item_ids, dataset: str, p: float):
     """
     Create a CSV assigning popularity labels based on item rank (not interaction mass).
 
@@ -556,9 +556,6 @@ def create_item_popularity_csv(dataset: str, p: float):
         print("Warning: p > 0.5 causes overlap of top and bottom sets. Proceeding but resolving conflicts toward +1.")
 
     dataset_path = os.path.join(".", "dataset", dataset)
-    train_npz_path = os.path.join(dataset_path, "biased_eval_train.npz")
-    data = np.load(train_npz_path)
-    item_ids = data["item_id"]
     total_interactions = len(item_ids)
 
     unique_items, counts = np.unique(item_ids, return_counts=True)
@@ -841,3 +838,80 @@ def create_user_popularity_csv(
     ).sort_values("pop_score", ascending=False)
 
     out_df.to_csv(out_csv, index=False)
+
+
+
+def create_user_label_csv(user_ids,
+                          item_ids,
+                          timestamps,
+                          alpha=0.9,
+                          dataset=None,
+                          sep=","):
+    """Compute labels and save to CSV.
+
+    Output: ./dataset/{dataset}/user_popularity_labels.csv with columns:
+      - user_id:token
+      - timestamp
+      - popularity_label   (user-level: top 20% score -> 1, bottom 20% -> -1, else 0)
+      - item_popularity    (per-item popularity: top 20% -> 1, bottom 20% -> -1, else 0)
+    """
+
+    u = np.asarray(user_ids)
+    it = np.asarray(item_ids)
+    ts = np.asarray(timestamps)
+    if not (len(u) == len(it) == len(ts)):
+        raise ValueError("user_ids, item_ids, timestamps must have the same length")
+
+    # ---- Build DF -----------------------------------------------------------
+    df = pd.DataFrame({
+        "user_id:token": u.astype(str),
+        "item_id:token": it.astype(str),
+        "timestamp":     ts.astype(float)
+    })
+
+    base = os.path.join(".", "dataset", dataset) if dataset is not None else "."
+    os.makedirs(base, exist_ok=True)
+    out_csv = os.path.join(base, "user_popularity_labels.csv")
+
+    # ---- Item popularity ----------------------------------------------------
+    item_counts = df["item_id:token"].value_counts()
+    n_items = len(item_counts)
+    top_n = math.ceil(0.2 * n_items)
+    bot_n = math.floor(0.2 * n_items)
+
+    sorted_items = item_counts.sort_values()
+    bottom_items = set(sorted_items.index[:bot_n])
+    top_items    = set(sorted_items.index[-top_n:])
+
+    pop_map = {iid: (-1 if iid in bottom_items else (1 if iid in top_items else 0))
+               for iid in item_counts.index}
+    df["item_popularity"] = df["item_id:token"].map(pop_map).fillna(0).astype("int8")
+
+    # ---- Recency weights & scores ------------------------------------------
+    df = df.sort_values(["user_id:token", "timestamp"], ascending=[True, False])
+    df["n"] = df.groupby("user_id:token").cumcount()
+
+    df["w"] = alpha ** df["n"]
+    df["w_sum"] = df.groupby("user_id:token")["w"].transform("sum")
+    df["score"] = df["w"] * df["item_popularity"] / df["w_sum"].replace(0, np.nan)
+
+    # ---- User-level popularity_label via top/bottom 20% of last scores ------
+    last_scores = df.loc[df["n"] == 0, ["user_id:token", "score"]].dropna()
+    n_users = len(last_scores)
+    top_u = math.ceil(0.2 * n_users)
+    bot_u = math.floor(0.2 * n_users)
+
+    sorted_users = last_scores.sort_values("score")
+    bottom_users = set(sorted_users["user_id:token"].iloc[:bot_u])
+    top_users    = set(sorted_users["user_id:token"].iloc[-top_u:])
+
+    user_pop_map = {uid: (-1 if uid in bottom_users else (1 if uid in top_users else 0))
+                    for uid in last_scores["user_id:token"]}
+    df["popularity_label"] = df["user_id:token"].map(user_pop_map).fillna(0).astype("int8")
+
+    # ---- Save ---------------------------------------------------------------
+    df = df.sort_values(["user_id:token", "timestamp"], ascending=[True, True])
+    df[["user_id:token", "timestamp", "popularity_label", "item_popularity"]] \
+      .to_csv(out_csv, sep=sep, index=False)
+
+    return df

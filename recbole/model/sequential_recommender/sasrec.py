@@ -172,7 +172,7 @@ class SASRec(SequentialRecommender):
 
 
     def FAIR(self, scores, *, p: float = 0.9, alpha: float = 0.1,
-            L: int = 500, K: int = 10):
+            L: int = 250, K: int = 10):
         """
         Re-rank each batch row with FA*IR.
             p      – target minimum proportion of protected items

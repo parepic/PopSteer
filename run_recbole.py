@@ -26,8 +26,8 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
-    # keep_random_users(dataset="yahoo-music", x = 25000)
-    # remove_sparse_users_items(5, "Amazon_Gift_Cards")
+    # keep_random_users(dataset="lfm1b-tracks", x = 500)
+    # remove_sparse_users_items(10, "lfm1b-tracks")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
     # create_item_popularity_csv("ml-1m", 0.2)
-    # plot_ndcg_vs_fairness(dataset="yoochoose-clicks", model="SASRec")
+    # plot_ndcg_vs_fairness(dataset="steam", alpha_i=-1.0, model="SASRec")
     # exit()
     # make_labels(dataset="yoochoose-clicks")
     # exit()
@@ -43,6 +43,8 @@ if __name__ == "__main__":
     parser.add_argument("--model", "-m", type=str, default="BPR", help="name of models")
     parser.add_argument("--train", action="store_true", help="Whether to train model")
     parser.add_argument("--test", action="store_true", help="Whether to test model")
+    parser.add_argument("--plot", action="store_true", help="Whether to test model")
+
     parser.add_argument("--fair", action="store_true", help="Whether to use FAIR")
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
 
@@ -89,7 +91,9 @@ if __name__ == "__main__":
     config_file_list = (
         args.config_files.strip().split(" ") if args.config_files else None
     )
-
+    if args.plot:
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_i=1.0, model="SASRec")
+        exit()
     config_dict = dict()
     if args.config_json:
         import json, ast
@@ -106,14 +110,13 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_gift.pth",
-                "load": "./saved/sasrec_yoochoose.pth",
+                # "load": "./saved/sasrec_yoochoose.pth",
                 "sae_scale_size": [32, 64],
                 "sae_k": [8, 32],
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 1],
-                "analyze": False,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"],
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"],
                 "train_neg_sample_args": None,
                 "hidden_size": 128,
                 "input_dim": 128
@@ -138,13 +141,14 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 1],
-                "steer": [0, 0],
+                "alpha": [1.5, 3],
+                "steer": [0, 1],
+                "steer_dir": [-1, -1],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"],
-                "load_col": {"inter": ['user_id', 'item_id', 'rating', 'timestamp', 'label']}
-            }
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
+                             "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
+                }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
             model_file=args.path, dict=config_dict
@@ -174,8 +178,8 @@ if __name__ == "__main__":
             'ndcghead@10',
             'ndcgmid@10',
             'ndcgusertail@10',
-            'ndcguserhead@10',
-            'ndcgusermid@10'
+            'ndcgusermid@10',
+            'ndcguserhead@10'
             ]
 
         max_key_len = max(len(k) for k in keys)

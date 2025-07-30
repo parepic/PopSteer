@@ -23,6 +23,8 @@ class SASRec_SAE(SASRec):
         self.load_state_dict(checkpoint['state_dict'])
         self.sae_module_i = SAE(config, side="item")
         self.sae_module_u = SAE(config, side="user")
+        self.a1 = 0.9
+        self.a2 = 0.1
         for param in self.parameters():
             param.requires_grad = False
         for param in self.sae_module_i.parameters():
@@ -96,6 +98,8 @@ class SASRec_SAE(SASRec):
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
+            # if self.fair:
+            scores = self.FAIR(scores, p=0.7,alpha=0.01).to(self.device)
             self.val_fvu_i += (self.sae_module_i.fvu)
             self.val_fvu_u += (self.sae_module_u.fvu)
             return scores
@@ -123,6 +127,7 @@ class SAE(nn.Module):
         self.scale_size = config["sae_scale_size"][self.index]
         self.alpha = config['alpha'][self.index]
         self.steer = config['steer'][self.index]
+        self.steer_dir = config['steer_dir'][self.index]
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
         self.dampen=False
@@ -254,13 +259,18 @@ class SAE(nn.Module):
      
 
     def _build_steering_vector(self, dataset):
-        """Do the heavy CSV reads + weight math once."""
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
+        
+        if self.steer_dir == -1:
+            combined = ([(i, d, "unpop")   for i, d in unpop_neurons])
+        elif self.steer_dir == 1:
+            combined = ([(i, d, "pop")   for i, d in pop_neurons])
+        elif self.steer_dir == 0:
+            combined = ([(i, d, "pop")   for i, d in pop_neurons] +
+                        [(i, d, "unpop")   for i, d in unpop_neurons])
 
-        combined = ([(i, d, "unpop") for i, d in unpop_neurons] +
-                    [(i, d, "pop")   for i, d in pop_neurons])
         combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
         top_neurons = combined_sorted[: self.N]
 
@@ -268,7 +278,7 @@ class SAE(nn.Module):
         stats_pop   = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_popular.csv")
 
         abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
-                                  device=self.device, dtype=self.dtype)
+                                device=self.device, dtype=self.dtype)
 
         def normalize_to_range(x, new_min, new_max):
             max_val = torch.max(x)
@@ -280,17 +290,20 @@ class SAE(nn.Module):
 
         steer = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
 
+    
         for i, (neuron_idx, _, group) in enumerate(top_neurons):
             w = weights[i]
             if group == "unpop":
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
                 steer[neuron_idx] += w * unpop_sd
-            else:  # "pop"
+            if group == "pop":
                 pop_sd = stats_pop.iloc[neuron_idx]["sd"]
                 steer[neuron_idx] -= w * pop_sd
 
         self.steer_vec = steer
         self._steer_ready = True
+
+
 
     # --- CHANGED ---
     def dampen_neurons(self, pre_acts, dataset=None):
@@ -351,5 +364,7 @@ class SAE(nn.Module):
                 self.auxk_loss = scale * auxk_loss / total_variance
 
             return x_reconstructed
+
+
 
 
