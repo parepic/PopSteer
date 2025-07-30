@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 "load": "./saved/sasrec_yelp2018-32-64.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [48, 64],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-5,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],

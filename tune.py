@@ -193,11 +193,27 @@ def tune_FAIR(args):
         model_file=args.path, dict=config_dict
     )
 
-    model.fair = True
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
 
-    change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
+
+    test_result = trainer.evaluate(
+        valid_data,
+        model_file=args.path,
+        load_best_model=False,
+        show_progress=config["show_progress"]
+    )
+    trainer.model.restore_item_e = None
+    rows_raw   = []
+    baseline = {
+        'alpha_u': 0,
+        'alpha_i': 0,
+        **{k: test_result[k] for k in metric_keys}}
+    rows_raw.append(baseline)
+    
+    model.fair = True
+
+    change1 = [0.4, 0.6, 0.8, 1.0]
     change2 = [0.01, 0.05, 0.1]
 
     # --- prepare header printing ---
@@ -207,8 +223,6 @@ def tune_FAIR(args):
     print(header_line)
     print(sep_line)
 
-    rows_raw   = []
-    baseline   = None
 
     for a_u in change1:
         for a_i in change2:
@@ -232,11 +246,6 @@ def tune_FAIR(args):
                 **{k: test_result[k] for k in metric_keys}
             }
             rows_raw.append(current)
-
-            # establish baseline on first iteration
-            if baseline is None:
-                baseline = current
-
             # ----- format & print this row immediately -----
             formatted_cells = [
                 f"{a_u:.2f}",
@@ -248,7 +257,6 @@ def tune_FAIR(args):
 
                 wants_pct = (
                     k in PCT_METRICS           # only for the four chosen metrics
-                    and current is not baseline
                     and base != 0
                 )
 

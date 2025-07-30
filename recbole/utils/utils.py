@@ -817,10 +817,10 @@ def plot_ndcg_vs_fairness(
 
     # ------------------------------------------------------------------ paths
     files = {
-        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-realfinal.csv",
-        "Hybrid":  rf"dataset/{dataset}/results/{model}_user_{dataset}-hybrid.csv",
-        "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-realfinal.csv",
-        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-realfinal.csv",
+        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-test5.csv",
+        "Hybrid":  rf"dataset/{dataset}/results/{model}_user_{dataset}-noo.csv",
+        "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-noo.csv",
+        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-test5.csv",
     }
 
     # -------------------------------------------------------------- csv loader
@@ -900,7 +900,7 @@ def plot_ndcg_vs_fairness(
     # --------------------------------------------------- fairness scatter plots
     fairness_specs = [("avgpop@10", "Average Popularity @10", "avgpop@10"),
                       ("gini@10",   "Gini Index @10",         "gini@10"),
-                      ("cov@10",    "Coverage @10",           "cov@10")]
+                      ("covn@10",    "Coverage-5 @10",         "cov@10")]
 
     for metric_key, metric_title, dict_key in fairness_specs:
         fig, ax = plt.subplots()
