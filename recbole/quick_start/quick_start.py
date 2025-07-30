@@ -235,7 +235,7 @@ def objective_function(config_dict=None, config_file_list=None, saved=True):
 
 import torch
 
-def load_data_and_model(model_file, device='cpu', dict=None):
+def load_data_and_model(model_file, dict=None):
     r"""Load filtered dataset, split dataloaders and saved model.
 
     Args:
@@ -251,7 +251,9 @@ def load_data_and_model(model_file, device='cpu', dict=None):
             - valid_data (AbstractDataLoader): The dataloader for validation.
             - test_data (AbstractDataLoader): The dataloader for testing.
     """
-
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda'
     checkpoint = torch.load(model_file, weights_only=False, map_location=torch.device(device))
     config = checkpoint["config"]
     for key, value in dict.items():

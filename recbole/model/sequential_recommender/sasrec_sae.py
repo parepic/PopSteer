@@ -19,9 +19,10 @@ class SASRec_SAE(SASRec):
     def __init__(self, config, dataset):
         super().__init__(config, dataset)
         model_path = config["base_path"]
-        checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
-        self.load_state_dict(checkpoint['state_dict'])
-        
+        checkpoint = torch.load(model_path,
+                                map_location=self.device,   # 'cuda:0' expected
+                                weights_only=False)
+        print(self.device, " amciq ")
         self.sae_module_i = SAE(config, side="item")
         self.sae_module_u = SAE(config, side="user")
         self.a1 = 0.9
