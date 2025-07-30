@@ -5,6 +5,39 @@ from recbole.utils import (
 import csv
 import torch
 
+PCT_METRICS = {
+    'ndcg@10',                 # NDCG
+    'giniindex@10',            # GINI
+    'averagepopularity@10',    # AVGPOP
+    'itemcoveragen@10',        # COVN
+}
+
+
+
+metric_keys = [
+    'ndcg@10',
+    'giniindex@10',
+    'averagepopularity@10',
+    'itemcoverage@10',
+    'ndcgtail@10',
+    'ndcghead@10',
+    'ndcgmid@10',
+    'itemcoveragen@10',
+    'dltc@10'
+    ]
+
+SHORT_NAMES = {
+    'ndcg@10': 'NDCG@10',
+    'giniindex@10': 'GINI@10',
+    'averagepopularity@10': 'AVGPOP@10',
+    'itemcoverage@10': 'COV@10',
+    'itemcoveragen@10': 'COVN@10',
+    'ndcgtail@10':'NDCGTAIL@10',
+    'ndcgmid@10':'NDCGMID@10',
+    'ndcghead@10':'NDCGHEAD@10',
+    'dltc@10':'DLTC@10'
+}
+
 
 def tune(args):
     if args.fair:
@@ -19,7 +52,7 @@ def tune(args):
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
-            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage",
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "Deep_LT_Coverage", "ItemCoverage",
                         "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
             }
     
@@ -32,28 +65,8 @@ def tune(args):
     # change2 = [0.0]
 
     change1= [0]
-    change2 = [0.0, 1, 2.0, 3.0, 4.0]
-    metric_keys = [
-        'ndcg@10',
-        'giniindex@10',
-        'averagepopularity@10',
-        'itemcoverage@10',
-        'ndcgtail@10',
-        'ndcghead@10',
-        'ndcgmid@10',
-        'itemcoveragen@10'
-        ]
+    change2 = [0.0, 0.5, 1, 1.5, 2.0, 3.0, 4.0]
 
-    SHORT_NAMES = {
-        'ndcg@10': 'NDCG@10',
-        'giniindex@10': 'GINI@10',
-        'averagepopularity@10': 'AVGPOP@10',
-        'itemcoverage@10': 'COV@10',
-        'itemcoveragen@10': 'COVN@10',
-        'ndcgtail@10':'NDCGTAIL@10',
-        'ndcgmid@10':'NDCGMID@10',
-        'ndcghead@10':'NDCGHEAD@10',
-    }
 
     rows_raw = []
 
@@ -109,20 +122,20 @@ def tune(args):
             'alpha_i': f"{r['alpha_i']:.2f}",
         }
         for k in metric_keys:
-            val = r[k]
+            val  = r[k]
             base = baseline[k]
-            if is_baseline:
-                if show_zero_pct_on_baseline and base != 0:
-                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f} (+0.00%)"
-                else:
-                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f}"
+
+            # --- decide whether this metric should have a Δ % ---
+            wants_pct = k in PCT_METRICS and not is_baseline and base != 0
+
+            if wants_pct:
+                pct  = (val - base) / base * 100.0
+                sign = '+' if pct >= 0 else ''
+                formatted_row[SHORT_NAMES[k]] = (
+                    f"{val:.{value_decimals}f} ({sign}{pct:.{pct_decimals}f}%)"
+                )
             else:
-                if base == 0:
-                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f} (n/a)"
-                else:
-                    pct = (val - base) / base * 100.0
-                    sign = '+' if pct >= 0 else ''
-                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f} ({sign}{pct:.{pct_decimals}f}%)"
+                formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f}"
         formatted_rows.append(formatted_row)
 
     # Compute column widths
@@ -159,8 +172,9 @@ def tune(args):
                 "covn@10": r["itemcoveragen@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"]
-                                        })
+                'ndcghead@10': r["ndcghead@10"],
+                'dltc@10': r["dltc@10"]
+                })
 
     return rows_raw, formatted_rows
 
@@ -173,8 +187,7 @@ def tune_FAIR(args):
             "alpha": [0.5, 0.5],
             "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex",
                         "AveragePopularity", "ItemCoverageN", "ItemCoverage",
-                        "NDCGTail", "NDCGHead", "NDCGMid",
-                        "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
+                        "NDCGTail", "NDCGHead", "NDCGMid", 'Deep_LT_Coverage']
         }
 
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -185,30 +198,8 @@ def tune_FAIR(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
 
-    change1 = [0.4, 0.8]
-    change2 = [0.01, 0.1]
-
-    metric_keys = [
-        'ndcg@10',
-        'giniindex@10',
-        'averagepopularity@10',
-        'itemcoverage@10',
-        'itemcoveragen@10',
-        'ndcgtail@10',
-        'ndcghead@10',
-        'ndcgmid@10'
-     ]
-
-    SHORT_NAMES = {
-        'ndcg@10':  'NDCG@10',
-        'giniindex@10': 'GINI@10',
-        'averagepopularity@10': 'AVGPOP@10',
-        'itemcoverage@10': 'COV@10',
-        'itemcoveragen@10': 'COVN@10',
-        'ndcgtail@10': 'NDCGTAIL@10',
-        'ndcgmid@10': 'NDCGMID@10',
-        'ndcghead@10': 'NDCGHEAD@10'
-    }
+    change1 = [0.2, 0.4, 0.8, 1.0]
+    change2 = [0.01, 0.05, 0.1]
 
     # --- prepare header printing ---
     header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
@@ -253,21 +244,25 @@ def tune_FAIR(args):
                 f"{a_i:.2f}",
             ]
             for k in metric_keys:
-                val  = current[k]
+                val  = r[k]
                 base = baseline[k]
-                if current is baseline:               # first row → no Δ shown
-                    formatted_cells.append(f"{val:.4f}")
-                else:
-                    pct  = (val - base) / base * 100 if base != 0 else float('nan')
+
+                # --- decide whether this metric should have a Δ % ---
+                wants_pct = k in PCT_METRICS and not is_baseline and base != 0
+
+                if wants_pct:
+                    pct  = (val - base) / base * 100.0
                     sign = '+' if pct >= 0 else ''
-                    formatted_cells.append(f"{val:.4f} ({sign}{pct:.2f}%)")
+                    formatted_row[SHORT_NAMES[k]] = (
+                        f"{val:.{value_decimals}f} ({sign}{pct:.{pct_decimals}f}%)"
+                    )
+                else:
+                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f}"
             print(" | ".join(formatted_cells))
 
     # --- Write selected results to CSV (unchanged) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg", "dltc@10", "avgpop@10",
-                  "gini@10", "cov@10", "covn@10", 'ndcgtail@10',
-                  'ndcgmid@10', 'ndcghead@10']
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-test.csv'
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -280,10 +275,10 @@ def tune_FAIR(args):
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
-                "covn@10": r.get("itemcoveragen@10", 0),
+                "covn@10": r["itemcoveragen@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"]
-            })
-
+                'ndcghead@10': r["ndcghead@10"],
+                'dltc@10': r["dltc@10"]
+                })
     return rows_raw

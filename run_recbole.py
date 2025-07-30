@@ -120,7 +120,8 @@ if __name__ == "__main__":
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 1],
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"],
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+                             "NDCGTail", "NDCGHead", "NDCGMid"],
                 "train_neg_sample_args": None,
                 "hidden_size": 128,
                 "input_dim": 128
@@ -150,8 +151,8 @@ if __name__ == "__main__":
                 "steer_dir": [-1, -1],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
-                             "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage", 'Deep_LT_Coverage',
+                            "NDCGTail", "NDCGHead", "NDCGMid"]
                 }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -174,17 +175,14 @@ if __name__ == "__main__":
             'recall@10',
             'ndcg@10',
             'hit@10',
-            'deep_lt_coverage@10',
+            'dltc@10',
             'giniindex@10',
             'averagepopularity@10',
             'itemcoverage@10',
             'itemcoveragen@10',
             'ndcgtail@10',
             'ndcghead@10',
-            'ndcgmid@10',
-            'ndcgusertail@10',
-            'ndcgusermid@10',
-            'ndcguserhead@10'
+            'ndcgmid@10'
             ]
 
         max_key_len = max(len(k) for k in keys)

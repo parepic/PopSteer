@@ -96,7 +96,7 @@ class Deep_LT_Coverage(AbstractMetric):
         # Pack results
         metric_dict = {}
         for k, cov in zip(self.topk, metric_values):
-            metric_dict[f"deep_lt_coverage@{k}"] = round(cov, self.decimal_place)
+            metric_dict[f"dltc@{k}"] = round(cov, self.decimal_place)
         return metric_dict
 
     # -------- implementation --------
