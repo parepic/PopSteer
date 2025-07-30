@@ -210,10 +210,21 @@ def tune_FAIR(args):
         'alpha_i': 0,
         **{k: test_result[k] for k in metric_keys}}
     rows_raw.append(baseline)
-    
+    formatted_cells = [
+        f"{0.0}",
+        f"{0.0}",
+    ]
+    for k in metric_keys:
+        val  = baseline[k]
+        formatted_cells.append(f"{val:.4f}")
+    print(" | ".join(formatted_cells))
+
+
+
+
     model.fair = True
 
-    change1 = [0.4, 0.6, 0.8, 1.0]
+    change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
     change2 = [0.01, 0.05, 0.1]
 
     # --- prepare header printing ---
