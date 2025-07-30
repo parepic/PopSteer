@@ -16,7 +16,8 @@ from recbole.utils import (
     plot_ndcg_vs_fairness,
     remove_sparse_users_items,
     keep_random_users,
-    make_labels
+    make_labels,
+    remove_after_half_timestamp
 )
 import csv
 
@@ -26,6 +27,8 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
+    # remove_after_half_timestamp(dataset="lfm1b-tracks")
+    # exit()
     # keep_random_users(dataset="lfm1b-tracks", x = 500)
     # remove_sparse_users_items(10, "lfm1b-tracks")
     # exit()

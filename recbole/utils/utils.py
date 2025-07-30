@@ -979,6 +979,47 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
 
 
 
+def remove_after_half_timestamp(dataset:str = None,
+                                sep: str = '\t') -> pd.DataFrame:
+    """
+    Remove rows whose `timestamp` is later than the halfway‑point
+    between the minimum and maximum timestamps in the data.
+
+    Parameters
+    ----------
+    csv_path : str
+        Path to the input CSV/TSV file.
+    out_path : str | None, default None
+        If given, the filtered data are written to this path
+        (with the same delimiter).  When None, nothing is written.
+    sep : str, default '\\t'
+        Field separator used in the file.
+
+    Returns
+    -------
+    pd.DataFrame
+        The filtered DataFrame (rows with timestamp ≤ cutoff).
+    """
+    csv_path = rf"./dataset/{dataset}/{dataset}.inter"
+    out_path = rf"./dataset/{dataset}/{dataset}.inter.new"
+    # ── 1. Load the file ────────────────────────────────────────────
+    df = pd.read_csv(csv_path, sep=sep)
+
+    # ── 2. Compute the halfway‑point timestamp ─────────────────────
+    min_ts = df["timestamp:float"].min()
+    max_ts = df["timestamp:float"].max()
+    cutoff = (min_ts + max_ts) / 2      # halfway between min & max
+
+    # ── 3. Keep only rows at or before the cutoff ──────────────────
+    filtered = df[df["timestamp:float"] <= cutoff].copy()
+
+    # ── 4. Optionally save the result ──────────────────────────────
+    if out_path:
+        filtered.to_csv(out_path, sep=sep, index=False)
+
+    return filtered
+
+
 def keep_random_users(
                       dataset: str,
                       x: int,
