@@ -113,13 +113,14 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_gift.pth",
-                # "load": "./saved/sasrec_yoochoose.pth",
-                "sae_scale_size": [32, 32],
-                "sae_k": [32, 32],
-                "learning_rate": 5e-4,
+                "base_path": "./saved/sasrec_yelp2018.pth",
+                "load": "./saved/sasrec_yelp2018-32-64.pth",
+                "sae_scale_size": [32, 96],
+                "sae_k": [48, 64],
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
+                "steer_dir": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                              "NDCGTail", "NDCGHead", "NDCGMid"],
                 "train_neg_sample_args": None,
