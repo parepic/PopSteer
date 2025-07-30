@@ -244,20 +244,21 @@ def tune_FAIR(args):
                 f"{a_i:.2f}",
             ]
             for k in metric_keys:
-                val  = r[k]
+                val  = current[k]
                 base = baseline[k]
 
-                # --- decide whether this metric should have a Δ % ---
-                wants_pct = k in PCT_METRICS and not is_baseline and base != 0
+                wants_pct = (
+                    k in PCT_METRICS           # only for the four chosen metrics
+                    and current is not baseline
+                    and base != 0
+                )
 
                 if wants_pct:
                     pct  = (val - base) / base * 100.0
                     sign = '+' if pct >= 0 else ''
-                    formatted_row[SHORT_NAMES[k]] = (
-                        f"{val:.{value_decimals}f} ({sign}{pct:.{pct_decimals}f}%)"
-                    )
+                    formatted_cells.append(f"{val:.4f} ({sign}{pct:.2f}%)")
                 else:
-                    formatted_row[SHORT_NAMES[k]] = f"{val:.{value_decimals}f}"
+                    formatted_cells.append(f"{val:.4f}")
             print(" | ".join(formatted_cells))
 
     # --- Write selected results to CSV (unchanged) ---
