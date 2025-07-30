@@ -797,6 +797,67 @@ class LogLoss(LossMetric):
         return loss / len(preds)
 
 
+class ItemCoverageN(AbstractMetric):
+    r"""ItemCoverageN computes coverage while requiring each counted item to
+    appear in the recommendation lists at least *N* times (default = 5).
+
+    .. math::
+       \mathrm{Coverage@K}^{(N)}
+       =\frac{\left| \{\, i \in I \mid \text{freq}_{@K}(i) \ge N \,\}\right|}
+              {|I|}
+
+    Args
+    ----
+    config (Config):
+        - ``topk`` (List[int]): cut‑offs to evaluate, e.g. ``[5, 10, 20]``.
+        - ``metric_decimal_place`` (int): rounding precision.
+        - ``min_times`` (int, optional): *N* in the formula. Defaults to ``5``.
+    """
+
+    metric_type = EvaluatorType.RANKING
+    metric_need = ["rec.items", "data.num_items", "data.num_users"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.topk = config["topk"]
+
+
+    # ---------- helpers -----------------------------------------------------
+
+    def used_info(self, dataobject):
+        """Return (item_matrix, num_items)."""
+        item_matrix = dataobject.get("rec.items")
+        num_items = dataobject.get("data.num_items")
+        num_users = dataobject.get("data.num_users")
+
+        return item_matrix.numpy(), num_items, num_users
+
+    # ---------- metric computation -----------------------------------------
+
+    def calculate_metric(self, dataobject):
+        item_matrix, num_items, num_users = self.used_info(dataobject)
+        metric_dict = {}
+        min_times = num_users * 0.001
+        for k in self.topk:
+            key = f"itemcoveragen@{k}"
+            covered_ratio = self._coverage_at_k(
+                item_matrix[:, :k], num_items, min_times
+            )
+            metric_dict[key] = round(covered_ratio, self.decimal_place)
+        return metric_dict
+
+    # ---------- static logic ------------------------------------------------
+
+    @staticmethod
+    def _coverage_at_k(item_matrix, num_items, min_times):
+        """Compute coverage with frequency threshold ``min_times``."""
+        # Flatten and count occurrences
+        values, counts = np.unique(item_matrix, return_counts=True)
+        # Items whose frequency >= threshold
+        covered_items = (counts >= min_times).sum()
+        return covered_items / num_items
+
+
 class ItemCoverage(AbstractMetric):
     r"""ItemCoverage_ computes the coverage of recommended items over all items.
 

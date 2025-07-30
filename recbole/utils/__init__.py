@@ -27,7 +27,7 @@ from recbole.utils.utils import (
     make_items_unpopular,
     keep_random_users,
     make_labels,
-    remove_after_half_timestamp
+    retain_last_x_days
 )
 from recbole.utils.enum_type import *
 from recbole.utils.argument_list import *
@@ -75,5 +75,5 @@ __all__ = [
     "make_items_unpopular",
     "keep_random_users",
     "make_labels",
-    "remove_after_half_timestamp"
+    "retain_last_x_days"
 ]

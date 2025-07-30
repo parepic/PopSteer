@@ -17,7 +17,7 @@ from recbole.utils import (
     remove_sparse_users_items,
     keep_random_users,
     make_labels,
-    remove_after_half_timestamp
+    retain_last_x_days
 )
 import csv
 
@@ -27,6 +27,7 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
+    # retain_last_x_days(dataset="lfm1b-tracks", days=178)
     # remove_after_half_timestamp(dataset="lfm1b-tracks")
     # exit()
     # keep_random_users(dataset="lfm1b-tracks", x = 500)
@@ -119,7 +120,7 @@ if __name__ == "__main__":
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 1],
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"],
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"],
                 "train_neg_sample_args": None,
                 "hidden_size": 128,
                 "input_dim": 128
@@ -145,11 +146,11 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "alpha": [1.5, 3],
-                "steer": [0, 1],
+                "steer": [0, 0],
                 "steer_dir": [-1, -1],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
                              "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
                 }
 
@@ -177,6 +178,7 @@ if __name__ == "__main__":
             'giniindex@10',
             'averagepopularity@10',
             'itemcoverage@10',
+            'itemcoveragen@10',
             'ndcgtail@10',
             'ndcghead@10',
             'ndcgmid@10',

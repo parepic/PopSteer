@@ -19,8 +19,8 @@ def tune(args):
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
-            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
-                            "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage",
+                        "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -31,8 +31,8 @@ def tune(args):
     # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     # change2 = [0.0]
 
-    change1= [-1]
-    change2 = [0.0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5]
+    change1= [1]
+    change2 = [0.0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 4.0]
     metric_keys = [
         'ndcg@10',
         'giniindex@10',
@@ -41,9 +41,7 @@ def tune(args):
         'ndcgtail@10',
         'ndcghead@10',
         'ndcgmid@10',
-        'ndcgusertail@10',
-        'ndcgusermid@10',
-        'ndcguserhead@10'
+        'itemcoveragen@10'
         ]
 
     SHORT_NAMES = {
@@ -51,12 +49,10 @@ def tune(args):
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
         'itemcoverage@10': 'COV@10',
+        'itemcoveragen@10': 'COVN@10',
         'ndcgtail@10':'NDCGTAIL@10',
         'ndcgmid@10':'NDCGMID@10',
         'ndcghead@10':'NDCGHEAD@10',
-        'ndcgusertail@10':'NDCGTAIL_U@10',
-        'ndcgusermid@10':'NDCGMID_U@10',
-        'ndcguserhead@10':'NDCGHEAD_U@10'
     }
 
     rows_raw = []
@@ -145,9 +141,8 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-hybrid.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
-                   'ndcguserhead@10',  'ndcgusermid@10',  'ndcgusertail@10'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test.csv'
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10'
                   ]
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
@@ -161,13 +156,11 @@ def tune(args):
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
+                "covn@10": r["itemcoveragen@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"],
-                'ndcguserhead@10': r["ndcguserhead@10"],
-                'ndcgusermid@10': r["ndcgusermid@10"],
-                'ndcgusertail@10': r["ndcgusertail@10"]
-            })
+                'ndcghead@10': r["ndcghead@10"]
+                                        })
 
     return rows_raw, formatted_rows
 
@@ -178,7 +171,8 @@ def tune_FAIR(args):
     if args.config_json is None:
         config_dict = {
             "alpha": [0.5, 0.5],
-            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", 
+                        "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid",
                             "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
             }
     
@@ -189,7 +183,7 @@ def tune_FAIR(args):
     model.fair = True
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
-    change1 = [0.3, 0.5, 0.7, 0.9, 0.99]
+    change1 = [0.3, 0.7, 0.99]
     change2 = [0.01, 0.05, 0.1]
 
     # change1 = [0.25, 0.5, 0.75, 1]
@@ -207,7 +201,8 @@ def tune_FAIR(args):
         'ndcgmid@10',
         'ndcgusertail@10',
         'ndcgusermid@10',
-        'ndcguserhead@10'
+        'ndcguserhead@10',
+        'itemcoveragen@10'
         ]
 
     SHORT_NAMES = {
@@ -215,6 +210,7 @@ def tune_FAIR(args):
         'giniindex@10': 'GINI@10',
         'averagepopularity@10': 'AVGPOP@10',
         'itemcoverage@10': 'COV@10',
+        'itemcoveragen@10': 'COVN@10',
         'ndcgtail@10':'NDCGTAIL@10',
         'ndcgmid@10':'NDCGMID@10',
         'ndcghead@10':'NDCGHEAD@10',
@@ -295,9 +291,8 @@ def tune_FAIR(args):
 
     # --- Write selected results to CSV (with separate alphas) ---
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-realfinal.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
-                   'ndcguserhead@10',  'ndcgusermid@10',  'ndcgusertail@10'
-                  ]
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test.csv'
+    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10",'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -310,12 +305,9 @@ def tune_FAIR(args):
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
+                "covn@10": r["itemcoveragen@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"],
-                'ndcguserhead@10': r["ndcguserhead@10"],
-                'ndcgusermid@10': r["ndcgusermid@10"],
-                'ndcgusertail@10': r["ndcgusertail@10"]
+                'ndcghead@10': r["ndcghead@10"]
             })
-
     return rows_raw, formatted_rows

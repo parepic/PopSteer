@@ -979,43 +979,48 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
 
 
 
-def remove_after_half_timestamp(dataset:str = None,
-                                sep: str = '\t') -> pd.DataFrame:
+def retain_last_x_days(dataset: str,
+                       days: int,
+                       *,
+                       sep: str = '\t') -> pd.DataFrame:
     """
-    Remove rows whose `timestamp` is later than the halfway‑point
-    between the minimum and maximum timestamps in the data.
+    Retain rows whose `timestamp:float` lies within the last *days* days.
 
     Parameters
     ----------
-    csv_path : str
-        Path to the input CSV/TSV file.
-    out_path : str | None, default None
-        If given, the filtered data are written to this path
-        (with the same delimiter).  When None, nothing is written.
+    dataset : str
+        Dataset name (folder and file are assumed to be
+        "./dataset/{dataset}/{dataset}.inter").
+    days : int
+        Number of days to keep (≥ 1).  A value larger than the dataset’s
+        total span keeps the whole file.
     sep : str, default '\\t'
-        Field separator used in the file.
+        Field separator used in the .inter file.
 
     Returns
     -------
     pd.DataFrame
-        The filtered DataFrame (rows with timestamp ≤ cutoff).
+        The filtered DataFrame containing only the last *days* of data.
     """
-    csv_path = rf"./dataset/{dataset}/{dataset}.inter"
-    out_path = rf"./dataset/{dataset}/{dataset}.inter.new"
-    # ── 1. Load the file ────────────────────────────────────────────
+    if days < 1:
+        raise ValueError("`days` must be at least 1.")
+
+    # ── 1. Resolve paths ───────────────────────────────────────────
+    csv_path = Path(f"./dataset/{dataset}/{dataset}.inter")
+    out_path = Path(f"./dataset/{dataset}/{dataset}.inter.last{days}d")
+
+    # ── 2. Load the interactions file ──────────────────────────────
     df = pd.read_csv(csv_path, sep=sep)
 
-    # ── 2. Compute the halfway‑point timestamp ─────────────────────
-    min_ts = df["timestamp:float"].min()
+    # ── 3. Compute the cutoff timestamp (Unix‑seconds) ─────────────
     max_ts = df["timestamp:float"].max()
-    cutoff = (min_ts + max_ts) / 2      # halfway between min & max
+    cutoff = max_ts - days * 24 * 60 * 60
 
-    # ── 3. Keep only rows at or before the cutoff ──────────────────
-    filtered = df[df["timestamp:float"] <= cutoff].copy()
+    # ── 4. Keep only rows at or after the cutoff ───────────────────
+    filtered = df[df["timestamp:float"] >= cutoff].copy()
 
-    # ── 4. Optionally save the result ──────────────────────────────
-    if out_path:
-        filtered.to_csv(out_path, sep=sep, index=False)
+    # ── 5. Persist the result next to the original file ────────────
+    filtered.to_csv(out_path, sep=sep, index=False)
 
     return filtered
 

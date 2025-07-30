@@ -99,7 +99,7 @@ class SASRec_SAE(SASRec):
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
             # if self.fair:
-            scores = self.FAIR(scores, p=0.7,alpha=0.01).to(self.device)
+            # scores = self.FAIR(scores, p=0.7,alpha=0.01).to(self.device)
             self.val_fvu_i += (self.sae_module_i.fvu)
             self.val_fvu_u += (self.sae_module_u.fvu)
             return scores
