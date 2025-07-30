@@ -13,7 +13,6 @@ PCT_METRICS = {
 }
 
 
-
 metric_keys = [
     'ndcg@10',
     'giniindex@10',
@@ -154,7 +153,7 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test5.csv'
     fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10'
                   ]
 
@@ -262,7 +261,7 @@ def tune_FAIR(args):
             print(" | ".join(formatted_cells))
 
     # --- Write selected results to CSV (unchanged) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-test.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-test5.csv'
     fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:

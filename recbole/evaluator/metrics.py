@@ -819,7 +819,7 @@ class ItemCoverageN(AbstractMetric):
     def calculate_metric(self, dataobject):
         item_matrix, num_items, num_users = self.used_info(dataobject)
         metric_dict = {}
-        min_times = 10
+        min_times = 5
         for k in self.topk:
             key = f"itemcoveragen@{k}"
             covered_ratio = self._coverage_at_k(

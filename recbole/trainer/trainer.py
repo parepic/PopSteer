@@ -752,19 +752,19 @@ class Trainer(AbstractTrainer):
         )
         times = 200
         cur = 0
-        for batch_idx, batched_data in enumerate(iter_data):
-            if cur >= times:
-                break
-            cur+=1
-            if eval_data:
-                interaction, history_index, positive_u, positive_i = batched_data
-            else:
-                interaction = batched_data
-            interaction = interaction.to(self.device)
-            self.optimizer.zero_grad()
-            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                self.model.full_sort_predict(interaction, popular=True)
-                self.model.full_sort_predict(interaction, popular=False)
+        # for batch_idx, batched_data in enumerate(iter_data):
+        #     if cur >= times:
+        #         break
+        #     cur+=1
+        #     if eval_data:
+        #         interaction, history_index, positive_u, positive_i = batched_data
+        #     else:
+        #         interaction = batched_data
+        #     interaction = interaction.to(self.device)
+        #     self.optimizer.zero_grad()
+        #     with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+        #         self.model.full_sort_predict(interaction, popular=True)
+        #         self.model.full_sort_predict(interaction, popular=False)
         save_mean_SD(self.dataset, popular=True)
         save_mean_SD(self.dataset, popular=False)
         save_cohens_d(self.dataset)

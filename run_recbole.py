@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # remove_after_half_timestamp(dataset="lfm1b-tracks")
     # exit()
     # keep_random_users(dataset="lfm1b-tracks", x = 500)
-    # remove_sparse_users_items(10, "lfm1b-tracks")
+    # remove_sparse_users_items(5, "ml-1mm")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -115,16 +115,16 @@ if __name__ == "__main__":
             config_dict = {
                 "base_path": "./saved/sasrec_gift.pth",
                 # "load": "./saved/sasrec_yoochoose.pth",
-                "sae_scale_size": [32, 64],
-                "sae_k": [8, 32],
-                "learning_rate": 1e-4,
+                "sae_scale_size": [32, 32],
+                "sae_k": [32, 32],
+                "learning_rate": 5e-4,
                 "alpha": [1.0, 1.0],
-                "steer": [0, 1],
+                "steer": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                              "NDCGTail", "NDCGHead", "NDCGMid"],
                 "train_neg_sample_args": None,
-                "hidden_size": 128,
-                "input_dim": 128
+                "hidden_size": 64,
+                "input_dim": 64
                 }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
@@ -146,9 +146,9 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 3],
-                "steer": [0, 0],
-                "steer_dir": [-1, -1],
+                "alpha": [1.5, 2],
+                "steer": [0, 1],
+                "steer_dir": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage", 'Deep_LT_Coverage',
