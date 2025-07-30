@@ -207,7 +207,7 @@ def tune_FAIR(args):
         'itemcoveragen@10': 'COVN@10',
         'ndcgtail@10': 'NDCGTAIL@10',
         'ndcgmid@10': 'NDCGMID@10',
-        'ndcghead@10': 'NDCGHEAD@10',
+        'ndcghead@10': 'NDCGHEAD@10'
     }
 
     # --- prepare header printing ---

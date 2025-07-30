@@ -67,7 +67,7 @@ class Deep_LT_Coverage(AbstractMetric):
         self.topk   = config["topk"]
 
         # -------- locate & read CSV once --------
-        csv_path = rf"./dataset/{config["dataset"]}/item_popularity_labels.csv"
+        csv_path = rf"./dataset/{config['dataset']}/item_popularity_labels.csv"
         df = pd.read_csv(csv_path, usecols=["item_id:token", "popularity_label"])
         self.tail_items = set(
             df.loc[df["popularity_label"] == -1, "item_id:token"]
