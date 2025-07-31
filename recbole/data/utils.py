@@ -844,74 +844,101 @@ def create_user_popularity_csv(
 def create_user_label_csv(user_ids,
                           item_ids,
                           timestamps,
-                          alpha=0.9,
-                          dataset=None,
-                          sep=","):
-    """Compute labels and save to CSV.
+                          *,
+                          alpha: float = 1.0,
+                          dataset: str | None = None,
+                          sep: str = ",") -> pd.DataFrame:
+    """
+    Compute item- and user-level popularity labels **plus** activity stats.
 
-    Output: ./dataset/{dataset}/user_popularity_labels.csv with columns:
+    Output  →  ./dataset/{dataset}/user_popularity_labels.csv  with columns:
       - user_id:token
       - timestamp
-      - popularity_label   (user-level: top 20% score -> 1, bottom 20% -> -1, else 0)
-      - item_popularity    (per-item popularity: top 20% -> 1, bottom 20% -> -1, else 0)
+      - popularity_label        (recency-weighted average popularity across all interactions)
+      - item_popularity         (per-item: top 20 % → 1, bottom 20 % → -1, else 0)
+      - interaction_count       (# interactions of that user in entire file)
+      - activity_label          (per-user: top 20 % → 1, bottom 20 % → -1, else 0)
     """
-
-    u = np.asarray(user_ids)
+    # ---------- basic checks & frame ----------------------------------------
+    u  = np.asarray(user_ids)
     it = np.asarray(item_ids)
     ts = np.asarray(timestamps)
     if not (len(u) == len(it) == len(ts)):
         raise ValueError("user_ids, item_ids, timestamps must have the same length")
 
-    # ---- Build DF -----------------------------------------------------------
     df = pd.DataFrame({
         "user_id:token": u.astype(str),
         "item_id:token": it.astype(str),
         "timestamp":     ts.astype(float)
     })
 
-    base = os.path.join(".", "dataset", dataset) if dataset is not None else "."
+    base = os.path.join(".", "dataset", dataset) if dataset else "."
     os.makedirs(base, exist_ok=True)
     out_csv = os.path.join(base, "user_popularity_labels.csv")
 
-    # ---- Item popularity ----------------------------------------------------
+    # ---------- item-level popularity ---------------------------------------
     item_counts = df["item_id:token"].value_counts()
     n_items = len(item_counts)
-    top_n = math.ceil(0.2 * n_items)
-    bot_n = math.floor(0.2 * n_items)
+    top_n_items = math.ceil(0.2 * n_items)
+    bot_n_items = math.floor(0.2 * n_items)
 
-    sorted_items = item_counts.sort_values()
-    bottom_items = set(sorted_items.index[:bot_n])
-    top_items    = set(sorted_items.index[-top_n:])
+    sorted_items = item_counts.sort_values()        # ascending
+    bottom_items = set(sorted_items.index[:bot_n_items])
+    top_items    = set(sorted_items.index[-top_n_items:])
 
-    pop_map = {iid: (-1 if iid in bottom_items else (1 if iid in top_items else 0))
-               for iid in item_counts.index}
-    df["item_popularity"] = df["item_id:token"].map(pop_map).fillna(0).astype("int8")
+    item_pop_map = {iid: (-1 if iid in bottom_items
+                          else (1 if iid in top_items else 0))
+                    for iid in item_counts.index}
+    df["item_popularity"] = df["item_id:token"].map(item_pop_map).fillna(0).astype("int8")
 
-    # ---- Recency weights & scores ------------------------------------------
     df = df.sort_values(["user_id:token", "timestamp"], ascending=[True, False])
-    df["n"] = df.groupby("user_id:token").cumcount()
-
+    df["n"] = df.groupby("user_id:token").cumcount()          # 0 for most-recent row
     df["w"] = alpha ** df["n"]
     df["w_sum"] = df.groupby("user_id:token")["w"].transform("sum")
     df["score"] = df["w"] * df["item_popularity"] / df["w_sum"].replace(0, np.nan)
 
-    # ---- User-level popularity_label via top/bottom 20% of last scores ------
-    last_scores = df.loc[df["n"] == 0, ["user_id:token", "score"]].dropna()
-    n_users = len(last_scores)
-    top_u = math.ceil(0.2 * n_users)
-    bot_u = math.floor(0.2 * n_users)
+    user_scores = df.groupby("user_id:token")["score"].sum().reset_index(name="score").dropna()
+    n_users_pop = len(user_scores)
+    top_pop = math.ceil(0.1 * n_users_pop)
+    bot_pop = math.floor(0.1 * n_users_pop)
 
-    sorted_users = last_scores.sort_values("score")
-    bottom_users = set(sorted_users["user_id:token"].iloc[:bot_u])
-    top_users    = set(sorted_users["user_id:token"].iloc[-top_u:])
+    sorted_users_pop = user_scores.sort_values("score")
+    bottom_users_pop = set(sorted_users_pop["user_id:token"].iloc[:bot_pop])
+    top_users_pop    = set(sorted_users_pop["user_id:token"].iloc[-top_pop:])
 
-    user_pop_map = {uid: (-1 if uid in bottom_users else (1 if uid in top_users else 0))
-                    for uid in last_scores["user_id:token"]}
-    df["popularity_label"] = df["user_id:token"].map(user_pop_map).fillna(0).astype("int8")
+    pop_label_map = {uid: (-1 if uid in bottom_users_pop
+                           else (1 if uid in top_users_pop else 0))
+                     for uid in user_scores["user_id:token"]}
+    df["popularity_label"] = df["user_id:token"].map(pop_label_map).fillna(0).astype("int8")
 
-    # ---- Save ---------------------------------------------------------------
+    # ---------- NEW: interaction_count & activity_label ---------------------
+    inter_counts = df.groupby("user_id:token").size()          # Series
+    inter_count_map = inter_counts.to_dict()
+
+    df["interaction_count"] = df["user_id:token"].map(inter_count_map).astype("int32")
+
+    n_users_act = len(inter_counts)
+    top_act = math.ceil(0.1 * n_users_act)
+    bot_act = math.floor(0.1 * n_users_act)
+
+    sorted_users_act = inter_counts.sort_values()              # ascending
+    bottom_users_act = set(sorted_users_act.index[:bot_act])
+    top_users_act    = set(sorted_users_act.index[-top_act:])
+
+    act_label_map = {uid: (-1 if uid in bottom_users_act
+                           else (1 if uid in top_users_act else 0))
+                     for uid in inter_counts.index}
+
+    df["activity_label"] = df["user_id:token"].map(act_label_map).fillna(0).astype("int8")
+
+    # ---------- save & return ----------------------------------------------
     df = df.sort_values(["user_id:token", "timestamp"], ascending=[True, True])
-    df[["user_id:token", "timestamp", "popularity_label", "item_popularity"]] \
-      .to_csv(out_csv, sep=sep, index=False)
+
+    df[["user_id:token",
+        "timestamp",
+        "popularity_label",
+        "item_popularity",
+        "interaction_count",
+        "activity_label"]].to_csv(out_csv, sep=sep, index=False)
 
     return df

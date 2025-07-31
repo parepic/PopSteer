@@ -27,11 +27,11 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
-    # retain_last_x_days(dataset="lfm1b-tracks", days=178)
-    # remove_after_half_timestamp(dataset="lfm1b-tracks")
+    # retain_last_x_days(dataset="lfm1b-tracks", days=712)
     # exit()
-    # keep_random_users(dataset="lfm1b-tracks", x = 500)
-    # remove_sparse_users_items(5, "ml-1mm")
+
+    # keep_random_users(dataset="lfm1b-tracks", x = 2000)
+    # remove_sparse_users_items(20, "lfm1b-tracks")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_i=0.0, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_i=0.0, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -114,7 +114,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_yelp2018.pth",
-                "load": "./saved/sasrec_yelp2018-32-64.pth",
+                "load": "./saved/sasrec_yelp2018-32-32.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [32, 32],
                 "learning_rate": 1e-4,
@@ -122,7 +122,7 @@ if __name__ == "__main__":
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                             "NDCGTail", "NDCGHead", "NDCGMid"],
+                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
                 "train_neg_sample_args": None,
                 "hidden_size": 64,
                 "input_dim": 64
@@ -148,12 +148,12 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "alpha": [1.5, 2],
-                "steer": [0, 1],
+                "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "ItemCoverage", 'Deep_LT_Coverage',
-                            "NDCGTail", "NDCGHead", "NDCGMid"]
+                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
                 }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -176,14 +176,16 @@ if __name__ == "__main__":
             'recall@10',
             'ndcg@10',
             'hit@10',
-            'dltc@10',
             'giniindex@10',
             'averagepopularity@10',
             'itemcoverage@10',
             'itemcoveragen@10',
             'ndcgtail@10',
             'ndcghead@10',
-            'ndcgmid@10'
+            'ndcgmid@10',
+            'ndcgtailuser@10',
+            'ndcgheaduser@10',
+            'ndcgmiduser@10'
             ]
 
         max_key_len = max(len(k) for k in keys)

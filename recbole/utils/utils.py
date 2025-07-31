@@ -953,9 +953,9 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         valid_users = valid_users[valid_users >= n].index
         interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["item_id:token"].value_counts()
+        valid_items = interactions["tracks_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["item_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["tracks_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -975,25 +975,26 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['item_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['tracks_id:token'].unique())} items.")
 
 
+
+SECONDS_PER_DAY = 24 * 60 * 60  # 86,400
 
 def retain_last_x_days(dataset: str,
                        days: int,
                        *,
                        sep: str = '\t') -> pd.DataFrame:
     """
-    Retain rows whose `timestamp:float` lies within the last *days* days.
+    Retain rows whose `timestamp:float` lies within the last *days* days
+    and print the total time span of the dataset, ignoring known bad timestamps.
 
     Parameters
     ----------
     dataset : str
-        Dataset name (folder and file are assumed to be
-        "./dataset/{dataset}/{dataset}.inter").
+        Dataset name (assumes "./dataset/{dataset}/{dataset}.inter").
     days : int
-        Number of days to keep (≥ 1).  A value larger than the dataset’s
-        total span keeps the whole file.
+        Number of days to keep (≥ 1).
     sep : str, default '\\t'
         Field separator used in the .inter file.
 
@@ -1012,17 +1013,27 @@ def retain_last_x_days(dataset: str,
     # ── 2. Load the interactions file ──────────────────────────────
     df = pd.read_csv(csv_path, sep=sep)
 
-    # ── 3. Compute the cutoff timestamp (Unix‑seconds) ─────────────
-    max_ts = df["timestamp:float"].max()
-    cutoff = max_ts - days * 24 * 60 * 60
+    # ── 3. Exclude known bad timestamps for span calculations ─────
+    bad_timestamps = {1997728387, 1685138202, 1470888595, 1471057491}
+    valid_ts = df[~df["timestamp:float"].isin(bad_timestamps)]["timestamp:float"]
+    min_ts = valid_ts.min()
+    max_ts = valid_ts.max()
+    span_days = (max_ts - min_ts) / SECONDS_PER_DAY
 
-    # ── 4. Keep only rows at or after the cutoff ───────────────────
+    print(f"Dataset time span: {span_days:.2f} days "
+          f"({min_ts:.0f} → {max_ts:.0f})")
+
+    # ── 4. Compute the cutoff timestamp for the last *days* ────────
+    cutoff = max_ts - days * SECONDS_PER_DAY
+
+    # ── 5. Keep only rows at or after the cutoff ───────────────────
     filtered = df[df["timestamp:float"] >= cutoff].copy()
 
-    # ── 5. Persist the result next to the original file ────────────
+    # ── 6. Save the result ─────────────────────────────────────────
     filtered.to_csv(out_path, sep=sep, index=False)
 
     return filtered
+
 
 
 def keep_random_users(
@@ -1464,7 +1475,7 @@ def make_labels(dataset=None,
 
     # ---- Merge per-interaction labels back (including holdouts -> 0) ---------
     df = df.merge(
-        calc_df[["user_id:token", "item_id:token", "timestamp:float", "label_cur"]],
+        calc_df[["user_id:token", "item_id:token", "tiuser_colmestamp:float", "label_cur"]],
         on=["user_id:token", "item_id:token", "timestamp:float"],
         how="left"
     )

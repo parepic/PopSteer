@@ -193,15 +193,9 @@ class Collector(object):
             self.data_struct.update_tensor("rec.score", scores_tensor)
             
         if self.register.need("data.user_label"):
-            csv_path = rf"./dataset/{self.config['dataset']}/user_popularity_labels.csv"
-            m = pd.read_csv(csv_path, usecols=["user_id:token", "popularity_label"])\
-                .set_index("user_id:token")["popularity_label"].to_dict()
-            tensors = torch.tensor([m.get((u), 0) for u in interaction["user_id"].to(self.device).tolist()],
-                        dtype=torch.int8, device=self.device)
             self.data_struct.update_tensor(
-                "data.user_label", tensors
+                "data.user_label", interaction["user_id"].to(self.device)
             )
-
 
         if self.register.need("data.label"):
             self.label_field = self.config["LABEL_FIELD"]

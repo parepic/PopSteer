@@ -11,8 +11,7 @@ loss_type: 'BPR'                 # (str) The type of loss function. Range in ['B
 train_neg_sample_args: {'distribution': 'uniform', 'sample_num': 1}
 
 input_dim: 128
-metrics: ["Recall","NDCG","Hit", "Deep_LT_Coverage", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserMid", "NDCGUserHead"]
-
+metrics: ["Recall","NDCG","Hit", "Deep_LT_Coverage", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "GiniIndex", "AveragePopularity", "ItemCoverage", "NDCGTail", "NDCGHead", "NDCGMid"]
 
 analyze: False
 sae_k: [8, 8]

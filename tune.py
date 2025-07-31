@@ -10,7 +10,15 @@ PCT_METRICS = {
     'giniindex@10',            # GINI
     'averagepopularity@10',    # AVGPOP
     'itemcoveragen@10',        # COVN
+    'ndcgmiduser@10',
+    'ndcgheaduser@10',
+    'ndcgtailuser@10'
 }
+
+
+fieldnames = ["alpha_u", "alpha_i", "ndcg", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgpassive@10', 
+              'ndcgneutral@10', 'ndcgactive@10', 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
+              'ndcgtailuser@10', 'ndcgmiduser@10', 'ndcgheaduser@10']
 
 
 metric_keys = [
@@ -18,11 +26,16 @@ metric_keys = [
     'giniindex@10',
     'averagepopularity@10',
     'itemcoverage@10',
-    'ndcgtail@10',
-    'ndcghead@10',
-    'ndcgmid@10',
+    # 'ndcgtail@10',
+    # 'ndcghead@10',
+    # 'ndcgmid@10',
     'itemcoveragen@10',
-    'dltc@10'
+    'ndcgpassive@10',
+    'ndcgneutral@10',
+    'ndcgactive@10',
+    'ndcgtailuser@10',
+    'ndcgheaduser@10',
+    'ndcgmiduser@10'
     ]
 
 SHORT_NAMES = {
@@ -31,11 +44,16 @@ SHORT_NAMES = {
     'averagepopularity@10': 'AVGPOP@10',
     'itemcoverage@10': 'COV@10',
     'itemcoveragen@10': 'COVN@10',
-    'ndcgtail@10':'NDCGTAIL@10',
-    'ndcgmid@10':'NDCGMID@10',
-    'ndcghead@10':'NDCGHEAD@10',
-    'dltc@10':'DLTC@10'
-}
+    # 'ndcgtail@10':'NDCGTAIL@10',
+    # 'ndcgmid@10':'NDCGMID@10',
+    # 'ndcghead@10':'NDCGHEAD@10',
+    'ndcgpassive@10':'NDCGPASS@10',
+    'ndcgneutral@10':'NDCGNEUT@10',
+    'ndcgactive@10':'NDCGACT@10',
+    'ndcgtailuser@10':'NDCGTAILUSER@10',
+    'ndcgmiduser@10':'NDCGMIDUSER@10',
+    'ndcgheaduser@10':'NDCGHEADUSER@10',
+    }
 
 
 def tune(args):
@@ -51,8 +69,8 @@ def tune(args):
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
-            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN", "Deep_LT_Coverage", "ItemCoverage",
-                        "NDCGTail", "NDCGHead", "NDCGMid", "NDCGUserTail", "NDCGUserHead", "NDCGUserMid"]
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -62,7 +80,7 @@ def tune(args):
     trainer.eval_collector.data_collect(train_data)
     # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     # change2 = [0.0]
-
+    
     change1= [1]
     change2 = [0.0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 4.0]
 
@@ -154,8 +172,6 @@ def tune(args):
 
     # --- Write selected results to CSV (with separate alphas) --
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test5.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10'
-                  ]
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -172,7 +188,6 @@ def tune(args):
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
                 'ndcghead@10': r["ndcghead@10"],
-                'dltc@10': r["dltc@10"]
                 })
 
     return rows_raw, formatted_rows
@@ -184,10 +199,9 @@ def tune_FAIR(args):
     if args.config_json is None:
         config_dict = {
             "alpha": [0.5, 0.5],
-            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex",
-                        "AveragePopularity", "ItemCoverageN", "ItemCoverage",
-                        "NDCGTail", "NDCGHead", "NDCGMid", 'Deep_LT_Coverage']
-        }
+            "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+            }
 
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
         model_file=args.path, dict=config_dict
@@ -281,7 +295,6 @@ def tune_FAIR(args):
 
     # --- Write selected results to CSV (unchanged) ---
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-test5.csv'
-    fieldnames = ["alpha_u", "alpha_i", "ndcg",  "dltc@10", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10']
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -298,6 +311,8 @@ def tune_FAIR(args):
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
                 'ndcghead@10': r["ndcghead@10"],
-                'dltc@10': r["dltc@10"]
+                'ndcgpassive@10': r["ndcgpassive@10"],
+                'ndcgneutral@10': r["ndcgneutral@10"],
+                'ndcgactive@10': r["ndcgactive@10"],
                 })
     return rows_raw

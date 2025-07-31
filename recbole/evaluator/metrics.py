@@ -378,111 +378,105 @@ class NDCGMid(NDCGGroup):
 
 
 
-class NDCGUserGroup(TopkMetric):
-    """
-    nDCG@K computed only over a subset of users, selected by `data.label`.
+# class NDCGUserGroup(TopkMetric):
+#     """
+#     nDCG@K computed only over a subset of users, selected by `data.label`.
 
-    Expects:
-        - rec.topk  : bool hit matrix, shape [n_users, K]  (from TopkMetric.used_info)
-        - data.label: shape [n_users], int labels (-1, 0, 1, …)
+#     Expects:
+#         - rec.topk  : bool hit matrix, shape [n_users, K]  (from TopkMetric.used_info)
+#         - data.label: shape [n_users], int labels (-1, 0, 1, …)
 
-    Parameters
-    ----------
-    config : dict
-    user_label : int
-        Which label value to keep (e.g. -1 for 'tail' users)
-    name : str
-        Metric name to report (e.g. 'ndcgtail_user')
-    skip_zero_den : bool
-        If True, rows with zero relevant items are set to NaN (ignored in mean).
-        If False, they are set to 0.0.
-    """
-    metric_need = ["rec.topk", "data.user_label"]
+#     Parameters
+#     ----------
+#     config : dict
+#     user_label : int
+#         Which label value to keep (e.g. -1 for 'tail' users)
+#     name : str
+#         Metric name to report (e.g. 'ndcgtail_user')
+#     skip_zero_den : bool
+#         If True, rows with zero relevant items are set to NaN (ignored in mean).
+#         If False, they are set to 0.0.
+#     """
+#     metric_need = ["rec.topk", "data.user_label"]
 
-    def __init__(self, config, user_label, name, skip_zero_den=False):
-        super().__init__(config)
-        self.user_label = user_label
-        self.name = name
-        self.skip_zero_den = skip_zero_den
+#     def __init__(self, config, user_label, name, skip_zero_den=False):
+#         super().__init__(config)
+#         self.user_label = user_label
+#         self.name = name
+#         self.skip_zero_den = skip_zero_den
 
-    def calculate_metric(self, dataobject):
-        # parent provides pos_index (hits) and pos_len (#positives) for ALL users
-        pos_index, pos_len = super().used_info(dataobject)
+#     def calculate_metric(self, dataobject):
+#         # parent provides pos_index (hits) and pos_len (#positives) for ALL users
+#         pos_index, pos_len = super().used_info(dataobject)
 
-        labels = dataobject.get("data.user_label")
+#         labels = dataobject.get("data.user_label")
 
-        if labels is None:
-            raise KeyError("`data.user_label` not found in dataobject. Add it to metric_need.")
-        if isinstance(labels, torch.Tensor):
-            labels = labels.cpu().numpy()
+#         if labels is None:
+#             raise KeyError("`data.user_label` not found in dataobject. Add it to metric_need.")
+#         if isinstance(labels, torch.Tensor):
+#             labels = labels.cpu().numpy()
 
-        user_mask = (labels == self.user_label)
-        # Handle the (rare) case where the mask is empty
-        if not np.any(user_mask):
-            K = pos_index.shape[1]
-            empty = np.zeros((0, K), dtype=np.float64)
-            return self.topk_result(self.name, empty)
+#         user_mask = (labels == self.user_label)
+#         # Handle the (rare) case where the mask is empty
+#         if not np.any(user_mask):
+#             K = pos_index.shape[1]
+#             empty = np.zeros((0, K), dtype=np.float64)
+#             return self.topk_result(self.name, empty)
 
-        pos_index_g = pos_index[user_mask]
-        pos_len_g = pos_len[user_mask]
+#         pos_index_g = pos_index[user_mask]
+#         pos_len_g = pos_len[user_mask]
 
-        result = self.metric_info(pos_index_g, pos_len_g)
-        return self.topk_result(self.name, result)
-
-
-    # ---------- same helper as before ----------
-    def metric_info(self, pos_index, pos_len):
-        """Exactly the same logic as in your NDCGGroup.metric_info."""
-        K = pos_index.shape[1]
-
-        # ideal length per user = min(#relevant, K)
-        idcg_len = np.where(pos_len > K, K, pos_len)
-
-        # rank discounts
-        ranks = np.arange(1, K + 1, dtype=np.float64)
-        discounts = 1.0 / np.log2(ranks + 1)
-
-        # prefix sums for IDCG
-        idcg_full = np.cumsum(discounts)
-        idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
-        for row, idx in enumerate(idcg_len):
-            if idx <= 0:
-                idcg[row, :] = 1.0  # avoid div-by-zero
-            elif idx < K:
-                idcg[row, idx:] = idcg[row, idx - 1]
-
-        # DCG
-        dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
-        ndcg = dcg / idcg
-
-        zero_mask = (pos_len == 0)
-        if self.skip_zero_den:
-            ndcg[zero_mask, :] = np.nan
-        else:
-            ndcg[zero_mask, :] = 0.0
-        return ndcg
+#         result = self.metric_info(pos_index_g, pos_len_g)
+#         return self.topk_result(self.name, result)
 
 
+#     # ---------- same helper as before ----------
+#     def metric_info(self, pos_index, pos_len):
+#         """Exactly the same logic as in your NDCGGroup.metric_info."""
+#         K = pos_index.shape[1]
 
-class NDCGUserTail(NDCGUserGroup):
-    def __init__(self, config):
-        super().__init__(config, user_label=-1, name="ndcgusertail")
+#         # ideal length per user = min(#relevant, K)
+#         idcg_len = np.where(pos_len > K, K, pos_len)
 
+#         # rank discounts
+#         ranks = np.arange(1, K + 1, dtype=np.float64)
+#         discounts = 1.0 / np.log2(ranks + 1)
 
-class NDCGUserMid(NDCGUserGroup):
-    def __init__(self, config):
-        super().__init__(config, user_label=0, name="ndcgusermid")
+#         # prefix sums for IDCG
+#         idcg_full = np.cumsum(discounts)
+#         idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
+#         for row, idx in enumerate(idcg_len):
+#             if idx <= 0:
+#                 idcg[row, :] = 1.0  # avoid div-by-zero
+#             elif idx < K:
+#                 idcg[row, idx:] = idcg[row, idx - 1]
 
+#         # DCG
+#         dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
+#         ndcg = dcg / idcg
 
-class NDCGUserHead(NDCGUserGroup):
-    def __init__(self, config):
-        super().__init__(config, user_label=1, name="ndcguserhead")
+#         zero_mask = (pos_len == 0)
+#         if self.skip_zero_den:
+#             ndcg[zero_mask, :] = np.nan
+#         else:
+#             ndcg[zero_mask, :] = 0.0
+#         return ndcg
 
 
 
+# class NDCGUserTail(NDCGUserGroup):
+#     def __init__(self, config):
+#         super().__init__(config, user_label=-1, name="ndcgusertail")
 
 
+# class NDCGUserMid(NDCGUserGroup):
+#     def __init__(self, config):
+#         super().__init__(config, user_label=0, name="ndcgusermid")
 
+
+# class NDCGUserHead(NDCGUserGroup):
+#     def __init__(self, config):
+#         super().__init__(config, user_label=1, name="ndcguserhead")
 
 
 class NDCG(TopkMetric):
@@ -525,6 +519,147 @@ class NDCG(TopkMetric):
 
         result = dcg / idcg
         return result
+        
+class NDCGUserGroup(TopkMetric):
+    r"""nDCG@K for a *subset of users* chosen by their ``activity_label``.
+
+    Parameters
+    ----------
+    config : dict-like
+        RecBole config; must contain ``dataset`` and ``topk`` entries.
+    label : {1, 0, -1}
+        Activity subgroup to evaluate:
+            * ``1``  – *Active*   (top-20 % interaction_count)
+            * ``0``  – *Neutral*  (middle-60 %)
+            * ``-1`` – *Passive*  (bottom-20 %)
+    name : str
+        Prefix used in the reported metric keys (e.g. *ndcg_active*).
+    """
+
+    # need K-best hits and the **user ids** that received each list
+    metric_need = ["rec.topk", "data.user_label"]
+
+    def __init__(self, config, label: int, name: str, column: str):
+        super().__init__(config)
+
+        path = rf"./dataset/{config['dataset']}/user_popularity_labels.csv"
+        df = pd.read_csv(path, usecols=["user_id:token", column])
+
+        # cache the user_id set for this subgroup
+        self.users = set(
+            df.loc[df[column] == label, "user_id:token"].astype(int)
+        )
+
+        self.name = name
+        self.skip_zero_den = False   # same semantics as in NDCGGroup
+
+    # --------------- public entry ------------------------------------------
+    def calculate_metric(self, dataobject):
+        grp_pos_index, grp_pos_len = self._used_info_activity(dataobject)
+        result = self.metric_info(grp_pos_index, grp_pos_len)
+        return self.topk_result(self.name, result)
+
+    # --------------- helpers ----------------------------------------------
+    def _used_info_activity(self, dataobject):
+        """
+        •  Obtain the usual *hits matrix* & *#relevant* from TopkMetric  
+        •  Slice them down to **only those rows belonging to our user subset**.
+        """
+        pos_index, pos_len = super().used_info(dataobject)     # [n_users, K], [n_users]
+
+        # user ids for each recommendation list
+        user_ids = dataobject.get("data.user_label")
+        if user_ids is None:
+            raise KeyError(
+                "`data.activity_label` not found in dataobject. "
+                "Please store user-ids in evaluation and add the key to `metric_need`."
+            )
+        if isinstance(user_ids, torch.Tensor):
+            user_ids = user_ids.cpu().numpy()
+
+        # mask rows whose user is *not* in the target activity group
+        mask_rows = np.isin(user_ids, list(self.users), assume_unique=False)
+        pos_index = pos_index[mask_rows]
+        pos_len   = pos_len[mask_rows]
+
+        # corner case: no users of this group in the current batch
+        if pos_index.size == 0:
+            # return a dummy array with zeros so downstream code stays safe
+            K = max(self.topk)
+            pos_index = np.zeros((1, K), dtype=bool)
+            pos_len   = np.zeros(1, dtype=int)
+
+        return pos_index, pos_len
+
+    # identical to NDCGGroup.metric_info – repeated for clarity
+    def metric_info(self, pos_index, pos_len):
+        K = pos_index.shape[1]
+
+        # ideal DCG length = min(#relevant, K)
+        idcg_len = np.where(pos_len > K, K, pos_len)
+
+        # discounts for ranks 1..K
+        ranks      = np.arange(1, K + 1, dtype=np.float64)
+        discounts  = 1.0 / np.log2(ranks + 1)
+
+        # pre-compute IDCG prefix sums
+        idcg_full = np.cumsum(discounts)
+        idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
+        for row, L in enumerate(idcg_len):
+            if L <= 0:                # no relevant items
+                idcg[row, :] = 1.0    # avoid zero division
+            elif L < K:
+                idcg[row, L:] = idcg[row, L - 1]
+
+        # DCG
+        dcg   = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
+        ndcg  = dcg / idcg
+
+        zero_mask = (pos_len == 0)
+        if self.skip_zero_den:
+            ndcg[zero_mask, :] = np.nan
+        else:
+            ndcg[zero_mask, :] = 0.0
+        return ndcg
+
+
+class NDCGActive(NDCGUserGroup):
+    """nDCG@K over *Active* users (top-20 % interaction_count)."""
+    def __init__(self, config):
+        super().__init__(config, label=1, name="ndcgactive", column="activity_label")
+
+
+class NDCGNeutral(NDCGUserGroup):
+    """nDCG@K over *Neutral* users (middle-60 %)."""
+    def __init__(self, config):
+        super().__init__(config, label=0, name="ndcgneutral", column="activity_label")
+
+
+class NDCGPassive(NDCGUserGroup):
+    """nDCG@K over *Passive* users (bottom-20 % interaction_count)."""
+    def __init__(self, config):
+        super().__init__(config, label=-1, name="ndcgpassive", column="activity_label")
+
+
+
+class NDCGHeadUser(NDCGUserGroup):
+    """nDCG@K over *Active* users (top-20 % interaction_count)."""
+    def __init__(self, config):
+        super().__init__(config, label=1, name="ndcgheaduser", column="popularity_label")
+
+
+class NDCGMidUser(NDCGUserGroup):
+    """nDCG@K over *Neutral* users (middle-60 %)."""
+    def __init__(self, config):
+        super().__init__(config, label=0, name="ndcgmiduser", column="popularity_label")
+
+
+class NDCGTailUser(NDCGUserGroup):
+    """nDCG@K over *Passive* users (bottom-20 % interaction_count)."""
+    def __init__(self, config):
+        super().__init__(config, label=-1, name="ndcgtailuser", column="popularity_label")
+
+
 
 
 class Precision(TopkMetric):
