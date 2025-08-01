@@ -113,10 +113,10 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_lastfm.pth",
-                # "load": "./saved/sasrec_lastfm.pth",
+                "load": "./saved/sasrec_lastfm-32-48.pth",
                 "sae_scale_size": [64, 96],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-3,
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
