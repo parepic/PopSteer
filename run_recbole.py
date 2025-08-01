@@ -29,8 +29,8 @@ from recbole.data import create_item_popularity_csv
 if __name__ == "__main__":
     # retain_last_x_days(dataset="lfm1b-tracks", days=712)
     # exit()
-    # keep_random_users(dataset="Amazon_Books", x=5000)
-    # remove_sparse_users_items(20, "Amazon_Books")
+    # keep_random_users(dataset="lfm1b-artists", x=1000)
+    # remove_sparse_users_items(20, "lfm1b-artists")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -113,7 +113,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_books.pth",
-                "load": "./saved/sasrec_books-32-48.pth",
+                # "load": "./saved/sasrec_books-32-48.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 48],
                 "learning_rate": 1e-3,

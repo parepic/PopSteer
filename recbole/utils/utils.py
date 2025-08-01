@@ -959,9 +959,9 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         valid_users = valid_users[valid_users >= n].index
         interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["tracks_id:token"].value_counts()
+        valid_items = interactions["artists_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["tracks_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["artists_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -981,7 +981,7 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['tracks_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['artists_id:token'].unique())} items.")
 
 
 
