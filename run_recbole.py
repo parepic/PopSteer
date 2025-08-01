@@ -114,8 +114,8 @@ if __name__ == "__main__":
             config_dict = {
                 "base_path": "./saved/sasrec_lastfm.pth",
                 # "load": "./saved/sasrec_lastfm.pth",
-                "sae_scale_size": [64, 64],
-                "sae_k": [32, 48],
+                "sae_scale_size": [64, 128],
+                "sae_k": [32, 64],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],

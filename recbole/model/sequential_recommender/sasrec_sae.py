@@ -41,7 +41,7 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
+        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
         # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
@@ -64,9 +64,9 @@ class SASRec_SAE(SASRec):
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         seq_output = self.forward(item_seq, item_seq_len, train_mode=True)
 
-        sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
+        # sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
         sae_loss_u = self.sae_module_u.fvu + self.sae_module_u.auxk_loss / 2
-        return sae_loss_i + sae_loss_u
+        return sae_loss_u
 
     def predict(self, interaction):
         item_seq = interaction[self.ITEM_SEQ]
