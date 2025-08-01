@@ -41,7 +41,7 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
+        reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
         # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
@@ -141,6 +141,8 @@ class SAE(nn.Module):
         self.d_in = config['input_dim']
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
+        self.activated_features = torch.zeros(config["train_batch_size"], self.hidden_dim)
+        self.analyze_neurons = False
         self.activation_count = torch.zeros(self.hidden_dim, device=config["device"])
         self.encoder = nn.Linear(self.d_in, self.hidden_dim, device=self.device,dtype = self.dtype)
         self.encoder.bias.data.zero_()
@@ -320,9 +322,9 @@ class SAE(nn.Module):
             sae_in = x - self.b_dec
             pre_acts1 = self.encoder(sae_in)
             self.last_activations = pre_acts1
-            if self.analyze == True:
-                if self.side == "item":
-                    compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
+            # if self.analyze == True:
+            #     if self.side == "item":
+            #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
