@@ -21,11 +21,10 @@ import pandas as pd
 import numpy as np
 import math
 
-
 from recbole.model.abstract_recommender import SequentialRecommender
 from recbole.model.layers import TransformerEncoder
 from recbole.model.loss import BPRLoss
-from recbole.utils import create_pop_unpop_mappings
+from recbole.utils import create_pop_unpop_mappings, make_items_popular, make_items_unpopular,save_batch_activations,get_extreme_correlations
 
 class SASRec(SequentialRecommender):
     r"""
@@ -39,7 +38,12 @@ class SASRec(SequentialRecommender):
 
     def __init__(self, config, dataset):
         super(SASRec, self).__init__(config, dataset)
+        self.alpha = config['alpha'][1]
+        self.dtype = torch.float32
 
+        self.steer = config['steer'][1]
+        self.steer_dir = config['steer_dir'][1]
+        self._steer_ready = False
         # load parameters info
         self.n_layers = config["n_layers"]
         self.n_heads = config["n_heads"]
@@ -47,6 +51,7 @@ class SASRec(SequentialRecommender):
         self.inner_size = config[
             "inner_size"
         ]  # the dimensionality in feed-forward layer
+        self.N = self.hidden_size
         self.a1 = config["alpha"][0]
         self.a2 = config["alpha"][1]
         self.fair = False
@@ -64,7 +69,7 @@ class SASRec(SequentialRecommender):
         )
         print("suka", self.device)
         self.dataset = config["dataset"]
-
+        self.last_activations = None
         
         self.position_embedding = nn.Embedding(self.max_seq_length, self.hidden_size)
 
@@ -123,6 +128,9 @@ class SASRec(SequentialRecommender):
         )
         output = trm_output[-1]
         output = self.gather_indexes(output, item_seq_len - 1)
+        # if self.steer == True and self.N != 0:
+        #     output = self.dampen_neurons(output, dataset=self.dataset)
+        self.last_activations = output
         return output  # [B H]
 
     def calculate_loss(self, interaction):
@@ -155,15 +163,25 @@ class SASRec(SequentialRecommender):
         scores = torch.mul(seq_output, test_item_emb).sum(dim=1)  # [B]
         return scores
 
-    def full_sort_predict(self, interaction):
+    def full_sort_predict(self, interaction, popular=None):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
-        seq_output = self.forward(item_seq, item_seq_len)
-        test_items_emb = self.item_embedding.weight
-        scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
-        if self.fair:
-            scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
-        return scores
+        if popular is not None:
+            if popular == True:
+                item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+            elif popular == False:
+                item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+            seq_output = self.forward(item_seq, item_seq_len)
+            save_batch_activations(self.last_activations, self.hidden_size, self.dataset, popular) 
+            return
+        else:
+            seq_output = self.forward(item_seq, item_seq_len)
+            test_items_emb = self.item_embedding.weight
+            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
+
+            if self.fair:
+                scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
+            return scores
 
 
     def create_synthetic_dataset(self):
@@ -268,3 +286,59 @@ class SASRec(SequentialRecommender):
             sel.append(choose)
 
         return np.array(sel, dtype=int)
+    
+
+    def _build_steering_vector(self, dataset):
+        pop_neurons, unpop_neurons = get_extreme_correlations(
+            rf"user/cohens_d.csv", dataset=dataset
+        )
+        
+        if self.steer_dir == -1:
+            combined = ([(i, d, "unpop")   for i, d in unpop_neurons])
+        elif self.steer_dir == 1:
+            combined = ([(i, d, "pop")   for i, d in pop_neurons])
+        elif self.steer_dir == 0:
+            combined = ([(i, d, "pop")   for i, d in pop_neurons] +
+                        [(i, d, "unpop")   for i, d in unpop_neurons])
+
+        combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
+        top_neurons = combined_sorted[: self.N]
+
+        stats_unpop = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_unpopular.csv")
+        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_popular.csv")
+
+        abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
+                                device=self.device, dtype=self.dtype)
+
+        def normalize_to_range(x, new_min, new_max):
+            max_val = torch.max(x)
+            if max_val == 0:
+                return torch.full_like(x, (new_min + new_max) / 2)
+            return (x / max_val) * (new_max - new_min) + new_min
+
+        weights = normalize_to_range(abs_cohens, 0, self.alpha)
+
+        steer = torch.zeros(self.hidden_size, device=self.device, dtype=self.dtype)
+
+    
+        for i, (neuron_idx, _, group) in enumerate(top_neurons):
+            w = weights[i]
+            if group == "unpop":
+                unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
+                steer[neuron_idx] += w * unpop_sd
+            if group == "pop":
+                pop_sd = stats_pop.iloc[neuron_idx]["sd"]
+                steer[neuron_idx] -= w * pop_sd
+
+        self.steer_vec = steer.to(self.device)
+        self._steer_ready = True
+
+    def dampen_neurons(self, pre_acts, dataset=None):
+        if getattr(self, "N", None) in (None, 0):
+            return pre_acts
+        if not self._steer_ready:
+            self._build_steering_vector(dataset)
+        if self.steer_vec.device != pre_acts.device:
+            self.steer_vec = self.steer_vec.to(pre_acts.device)
+
+        return pre_acts + self.steer_vec

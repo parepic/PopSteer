@@ -10,9 +10,6 @@ PCT_METRICS = {
     'giniindex@10',            # GINI
     'averagepopularity@10',    # AVGPOP
     'itemcoveragen@10',        # COVN
-    'ndcgmiduser@10',
-    'ndcgheaduser@10',
-    'ndcgtailuser@10'
 }
 
 
@@ -26,9 +23,9 @@ metric_keys = [
     'giniindex@10',
     'averagepopularity@10',
     'itemcoverage@10',
-    # 'ndcgtail@10',
-    # 'ndcghead@10',
-    # 'ndcgmid@10',
+    'ndcgtail@10',
+    'ndcghead@10',
+    'ndcgmid@10',
     'itemcoveragen@10',
     'ndcgpassive@10',
     'ndcgneutral@10',
@@ -44,9 +41,9 @@ SHORT_NAMES = {
     'averagepopularity@10': 'AVGPOP@10',
     'itemcoverage@10': 'COV@10',
     'itemcoveragen@10': 'COVN@10',
-    # 'ndcgtail@10':'NDCGTAIL@10',
-    # 'ndcgmid@10':'NDCGMID@10',
-    # 'ndcghead@10':'NDCGHEAD@10',
+    'ndcgtail@10':'NDCGTAIL@10',
+    'ndcgmid@10':'NDCGMID@10',
+    'ndcghead@10':'NDCGHEAD@10',
     'ndcgpassive@10':'NDCGPASS@10',
     'ndcgneutral@10':'NDCGNEUT@10',
     'ndcgactive@10':'NDCGACT@10',
@@ -82,7 +79,7 @@ def tune(args):
     # change2 = [0.0]
     
     change1= [0]
-    change2 = [0.0, 0.5, 1, 1.5, 2.0, 2.5, 3.0, 4.0]
+    change2 = [0.0, 0.5, 1, 1.25, 1.5, 1.75, 2.0, 2.5]
 
 
     rows_raw = []
@@ -113,7 +110,7 @@ def tune(args):
                 load_best_model=False,
                 show_progress=config["show_progress"]
             )
-            trainer.model.restore_item_e = None
+            # trainer.model.restore_item_e = None
             rows_raw.append({
                 'alpha_u': c2,
                 'alpha_i': c1,
@@ -171,7 +168,7 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-test5.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-god5.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -238,7 +235,7 @@ def tune_FAIR(args):
 
     model.fair = True
 
-    change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
+    change1 = [0.4, 0.6, 0.8, 1.0]
     change2 = [0.01, 0.05, 0.1]
 
     # --- prepare header printing ---
@@ -294,7 +291,7 @@ def tune_FAIR(args):
             print(" | ".join(formatted_cells))
 
     # --- Write selected results to CSV (unchanged) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-test5.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-god5.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

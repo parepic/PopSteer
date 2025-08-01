@@ -27,7 +27,8 @@ from recbole.utils.utils import (
     make_items_unpopular,
     keep_random_users,
     make_labels,
-    retain_last_x_days
+    retain_last_x_days,
+    get_extreme_correlations
 )
 from recbole.utils.enum_type import *
 from recbole.utils.argument_list import *
@@ -75,5 +76,6 @@ __all__ = [
     "make_items_unpopular",
     "keep_random_users",
     "make_labels",
-    "retain_last_x_days"
+    "retain_last_x_days",
+    "get_extreme_correlations"
 ]

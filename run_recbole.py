@@ -29,9 +29,8 @@ from recbole.data import create_item_popularity_csv
 if __name__ == "__main__":
     # retain_last_x_days(dataset="lfm1b-tracks", days=712)
     # exit()
-
-    # keep_random_users(dataset="lfm1b-tracks", x = 2000)
-    # remove_sparse_users_items(20, "lfm1b-tracks")
+    # keep_random_users(dataset="Amazon_Books", x=15000)
+    # remove_sparse_users_items(20, "Amazon_Books")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
     # create_item_popularity_csv("ml-1m", 0.2)
-    # plot_ndcg_vs_fairness(dataset="steam", alpha_i=-1.0, model="SASRec")
+    # plot_ndcg_vs_fairness(dataset="Amazon_Gift_Cards", alpha_i=0.0, model="SASRec")
     # exit()
     # make_labels(dataset="yoochoose-clicks")
     # exit()
@@ -96,7 +95,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_i=0.0, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_i=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -114,9 +113,9 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_yelp2018.pth",
-                "load": "./saved/sasrec_yelp2018-32-32.pth",
+                # "load": "./saved/sasrec_yelp2018-32-32.pth",
                 "sae_scale_size": [32, 96],
-                "sae_k": [32, 32],
+                "sae_k": [32, 48],
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 2],
+                "alpha": [1.5, 0.75],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,

@@ -739,7 +739,7 @@ class Trainer(AbstractTrainer):
             checkpoint_file
         )
         self.logger.info(message_output)
-        self.model.create_synthetic_dataset()
+        # self.model.create_synthetic_dataset()
         self.model.eval()
         iter_data = (
             tqdm(

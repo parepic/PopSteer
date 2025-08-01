@@ -782,50 +782,30 @@ import numpy as np
 import math
 
 
+import os, csv, math, numpy as np
+import matplotlib.pyplot as plt
+
+
 def plot_ndcg_vs_fairness(
     dataset: str,
     model: str = "LightGCN",
-    alpha_i: int | None = None,   # << NEW
+    alpha_i: int | None = None,
     show: bool = True,
     facet: bool = True,
 ):
-    """
-    Four plots for one dataset/model:
-        • Head/Mid/Tail NDCG@10 vs overall NDCG@10           (3‑facet line figure)
-        • Overall NDCG@10 vs avgpop@10                       (scatter)
-        • Overall NDCG@10 vs gini@10                         (scatter)
-        • Overall NDCG@10 vs cov@10                          (scatter)
-
-    Parameters
-    ----------
-    dataset : str
-    model   : str
-    alpha_i : int | None
-        If provided, we keep only rows in the *User‑side* CSV whose `alpha_i`
-        column equals this integer **plus** the very first row (baseline).
-        Other files are not filtered.
-    show    : bool
-    facet   : bool
-
-    Returns
-    -------
-    figs : dict[str, matplotlib.figure.Figure]
-           keys: "slice", "avgpop@10", "gini@10", "cov@10"
-    """
     if not dataset:
         raise ValueError("Please provide a dataset name, e.g. dataset='lastfm'.")
 
     # ------------------------------------------------------------------ paths
     files = {
-        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-test5.csv",
-        "Hybrid":  rf"dataset/{dataset}/results/{model}_user_{dataset}-noo.csv",
+        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-output5.csv",
+        "SASRecSteer":     rf"dataset/{dataset}/results/{model}_user_{dataset}-god5.csv",
         "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-noo.csv",
-        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-test5.csv",
+        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-output5.csv",
     }
 
     # -------------------------------------------------------------- csv loader
     def load_rows(path):
-        """Return list[dict] with every numeric column we recognise."""
         if not os.path.isfile(path):
             return []
         rows = []
@@ -836,15 +816,15 @@ def plot_ndcg_vs_fairness(
                     try:
                         numeric_row[k] = float(v)
                     except (ValueError, TypeError):
-                        numeric_row[k] = v       # keep as‑is for non‑numeric cols
+                        numeric_row[k] = v
                 rows.append(numeric_row)
         return rows
 
     data = {lbl: load_rows(p) for lbl, p in files.items()}
 
-    # ------------------ NEW: filter user‑side rows by alpha_i (keep first row)
+    # ------------------ filter user-side rows by alpha_i (keep first row)
     if alpha_i is not None and data["User-side"]:
-        first = data["User-side"][:1]   # always keep row 0
+        first = data["User-side"][:1]
         rest  = [
             r for r in data["User-side"][1:]
             if "alpha_i" in r
@@ -853,14 +833,26 @@ def plot_ndcg_vs_fairness(
         ]
         data["User-side"] = first + rest
 
-    # ------------------------------------------- style maps after filtering
-    colours = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
-    markers = ["o", "s", "^", "D", "P", "X"]
-    labels_present = [lbl for lbl, rows in data.items() if rows]
-    col_map = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
-    mrk_map = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
+    # ------------------ pull baseline from FAIR → SASRec
+    if data["FAIR"]:
+        data["SASRec"] = [data["FAIR"][0]]
+        data["FAIR"]   = data["FAIR"][1:]
+        if not data["FAIR"]:
+            del data["FAIR"]
 
-    figs = {}                         # where we collect the 4 figures
+    # ------------------ thresholds: 10 % & 5 % drops
+    baseline_ndcg = data["SASRec"][0].get("ndcg") if data.get("SASRec") else None
+    thr_10 = 0.90 * baseline_ndcg if baseline_ndcg is not None else None
+    thr_05 = 0.95 * baseline_ndcg if baseline_ndcg is not None else None
+
+    # ------------------------------------------- style maps
+    colours  = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
+    markers  = ["o", "s", "^", "D", "P", "X", "v", "*"]
+    labels_present = [lbl for lbl, rows in data.items() if rows]
+    col_map  = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
+    mrk_map  = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
+
+    figs = {}
 
     # ---------------------------------------------------------------- slice plot
     slice_keys   = ["ndcghead@10", "ndcgmid@10", "ndcgtail@10"]
@@ -875,17 +867,26 @@ def plot_ndcg_vs_fairness(
         fig_slice, ax = plt.subplots(figsize=(6, 4))
         axes = [ax] * 3
 
-    for ax, sk in zip(axes, slice_keys):
+    for ax_idx, (ax, sk) in enumerate(zip(axes, slice_keys)):
         for lbl, rows in data.items():
             pts = [(r.get("ndcg"), r.get(sk)) for r in rows
                    if r.get("ndcg") is not None and r.get(sk) is not None and not math.isnan(r[sk])]
             if not pts:
                 continue
             xs, ys = zip(*sorted(pts, key=lambda t: t[0]))
+            linestyle = "-" if len(xs) > 1 else "None"
             ax.plot(xs, ys,
-                    marker=mrk_map[lbl], color=col_map[lbl],
+                    marker=mrk_map[lbl], linestyle=linestyle,
+                    color=col_map[lbl],
                     linewidth=1, markersize=6,
                     label=lbl if sk == "ndcghead@10" else "_nolegend_")
+        # ---- add vertical lines (one label per legend)
+        if thr_10 is not None:
+            ax.axvline(thr_10, linestyle="--", linewidth=1, color="grey",
+                       label="10 % drop" if ax_idx == 0 else "_nolegend_")
+        if thr_05 is not None:
+            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey",
+                       label=" 5 % drop" if ax_idx == 0 else "_nolegend_")
         ax.set_xlabel("NDCG@10 (overall)")
         ax.set_ylabel(slice_titles[sk])
         ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
@@ -900,17 +901,21 @@ def plot_ndcg_vs_fairness(
     # --------------------------------------------------- fairness scatter plots
     fairness_specs = [("avgpop@10", "Average Popularity @10", "avgpop@10"),
                       ("gini@10",   "Gini Index @10",         "gini@10"),
-                      ("covn@10",    "Coverage-5 @10",         "cov@10")]
+                      ("covn@10",   "Coverage-5 @10",         "covn@10")]
 
     for metric_key, metric_title, dict_key in fairness_specs:
         fig, ax = plt.subplots()
         for lbl, rows in data.items():
-            xs = [r["ndcg"]     for r in rows if "ndcg" in r and dict_key in r]
-            ys = [r[dict_key]   for r in rows if "ndcg" in r and dict_key in r]
+            xs = [r["ndcg"]   for r in rows if "ndcg" in r and dict_key in r]
+            ys = [r[dict_key] for r in rows if "ndcg" in r and dict_key in r]
             if not xs:
                 continue
             ax.scatter(xs, ys, marker=mrk_map[lbl], label=lbl,
                        edgecolors="none", alpha=0.85, color=col_map[lbl])
+        if thr_10 is not None:
+            ax.axvline(thr_10, linestyle="--", linewidth=1, color="grey", label="10 % drop")
+        if thr_05 is not None:
+            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey", label=" 5 % drop")
         ax.set_xlabel("NDCG@10")
         ax.set_ylabel(metric_title)
         ax.set_title(f"{dataset}: NDCG@10 vs {metric_title}")
@@ -923,6 +928,7 @@ def plot_ndcg_vs_fairness(
         plt.show()
 
     return figs
+
 
 import shutil
 
@@ -953,9 +959,9 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         valid_users = valid_users[valid_users >= n].index
         interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["tracks_id:token"].value_counts()
+        valid_items = interactions["item_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["tracks_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["item_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -975,7 +981,7 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['tracks_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['item_id:token'].unique())} items.")
 
 
 
