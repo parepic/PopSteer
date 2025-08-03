@@ -145,6 +145,7 @@ class SAE(nn.Module):
         self.k = config["sae_k"][self.index]
         self.scale_size = config["sae_scale_size"][self.index]
         self.alpha = config['alpha'][self.index]
+        self.beta = None
         self.steer = config['steer'][self.index]
         self.steer_dir = config['steer_dir'][self.index]
         self.analyze = config['analyze']
@@ -159,6 +160,7 @@ class SAE(nn.Module):
         self.d_in = config['input_dim']
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
+        self.d_min = None
         self.activated_features = torch.zeros(config["train_batch_size"], self.hidden_dim)
         self.analyze_neurons = False
         self.activation_count = torch.zeros(self.hidden_dim, device=config["device"])
@@ -280,52 +282,89 @@ class SAE(nn.Module):
     
 
     def _build_steering_vector(self, dataset):
+        """Build the steering vector according to the specified direction.
+
+        If ``self.d_min`` is **not** ``None`` we do **not** rely on
+        ``self.N``.  Instead, we include *all* neurons whose absolute
+        Cohen's *d* is **greater than or equal to** ``self.d_min``.  When
+        ``self.d_min`` *is* ``None``, we fall back to using the first
+        ``self.N`` neurons ranked by |*d*|.
+        """
+
+        # ── 1. Load neurons ranked by effect‑size  ───────────────────────
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
-        self.N = 100
+
         if self.steer_dir == -1:
-            combined = ([(i, d, "unpop")   for i, d in unpop_neurons])
+            combined = [(i, d, "unpop") for i, d in unpop_neurons]
         elif self.steer_dir == 1:
-            combined = ([(i, d, "pop")   for i, d in pop_neurons])
-        elif self.steer_dir == 0:
-            combined = ([(i, d, "pop")   for i, d in pop_neurons] +
-                        [(i, d, "unpop")   for i, d in unpop_neurons])
+            combined = [(i, d, "pop") for i, d in pop_neurons]
+        else:  # self.steer_dir == 0  → both groups
+            combined = (
+                [(i, d, "pop") for i, d in pop_neurons]
+                + [(i, d, "unpop") for i, d in unpop_neurons]
+            )
 
+        # Sort by |d|, descending
         combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
-        top_neurons = combined_sorted[: self.N]
 
+        # ── 2. Select neurons either by threshold (d_min) or by a fixed N ──
+        if getattr(self, "d_min", None) is not None:
+            # Keep all neurons with |d| ≥ d_min
+            top_neurons = [triplet for triplet in combined_sorted if abs(triplet[1]) >= self.d_min]
+            # Update N for downstream code that might rely on its size
+            self.N = len(top_neurons)
+        else:
+            top_neurons = combined_sorted[: self.N]
+
+        if((self.N) == 0):
+            self.steer_vec = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
+            self._steer_ready = True
+            return
+        # ── 3. Load per‑neuron statistics  ───────────────────────────────
         stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpop.csv")
-        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_pop.csv")
+        stats_pop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_pop.csv")
 
-        abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
-                                device=self.device, dtype=self.dtype)
+        abs_cohens = torch.tensor(
+            [abs(c) for _, c, _ in top_neurons], device=self.device, dtype=self.dtype
+        )
 
-        def normalize_to_range(x, new_min, new_max):
-            max_val = torch.max(x)
-            if max_val == 0:
-                return torch.full_like(x, (new_min + new_max) / 2)
-            return (x / max_val) * (new_max - new_min) + new_min
+        # Placeholder for normalised weights
+        weights = torch.empty_like(abs_cohens)
 
-        weights = normalize_to_range(abs_cohens, 0, self.alpha)
+        def normalise(x, pop: bool | None = None):
+            """Linearly map *x* → [0, α] or [0, β] (pop vs. unpop)."""
+            thres = self.beta if pop else self.alpha
+            xmax = torch.max(x)
+            return torch.full_like(x, thres / 2) if xmax == 0 else (x / xmax) * thres
 
+        # ── 4. Compute group‑specific weights  ───────────────────────────
+        if self.steer_dir == 0:  # both groups
+            pop_mask = torch.tensor([g == "pop" for *_, g in top_neurons], device=self.device)
+            unpop_mask = ~pop_mask
+
+            if pop_mask.any():
+                weights[pop_mask] = normalise(abs_cohens[pop_mask], pop=True)
+            if unpop_mask.any():
+                weights[unpop_mask] = normalise(abs_cohens[unpop_mask])
+        else:
+            # steer_dir is ±1 → single group
+            weights = normalise(abs_cohens)
+
+        # ── 5. Assemble the steering vector  ─────────────────────────────
         steer = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
 
-    
         for i, (neuron_idx, _, group) in enumerate(top_neurons):
             w = weights[i]
             if group == "unpop":
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
-                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
-
-                # mask = steer[neuron_idx, :] > unpop_mean 
                 steer[neuron_idx] += w * unpop_sd
-            if group == "pop":
-                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
+            else:  # group == "pop"
                 pop_sd = stats_pop.iloc[neuron_idx]["sd"]
-                # mask = steer[neuron_idx, :] > unpop_mean 
                 steer[neuron_idx] -= w * pop_sd
 
+        # Save and mark ready
         self.steer_vec = steer.to(self.device)
         self._steer_ready = True
 

@@ -796,7 +796,9 @@ from typing import Dict, List, Any
 def plot_ndcg_vs_fairness(
     dataset: str,
     model: str = "LightGCN",
+    alpha_n: int | None = None,
     alpha_i: int | None = None,
+    alpha_u: int | None = None,
     show: bool = True,
     facet: bool = True,
 ):
@@ -822,6 +824,7 @@ def plot_ndcg_vs_fairness(
         "Random-reranker":rf"dataset/{dataset}/results/{model}_random_{dataset}-results.csv",
         "IPR": rf"dataset/{dataset}/results/{model}_ipr_{dataset}-results.csv",
         "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
+        "PCT":       rf"dataset/{dataset}/results/{model}_pct_{dataset}-results.csv",
     }
 
     # -------------------------------------------------------------- csv loader
@@ -842,14 +845,27 @@ def plot_ndcg_vs_fairness(
 
     data = {lbl: load_rows(p) for lbl, p in files.items()}
 
-    # ------------------ filter user-side rows by alpha_i (keep first row)
-    if alpha_i is not None and data["PopSteer"]:
+    if data.get("PopSteer"):
         first = data["PopSteer"][:1]
-        rest  = [
-            r for r in data["PopSteer"][1:]
-            if "alpha_i" in r and isinstance(r["alpha_i"], (int, float, str))
-            and int(float(r["alpha_i"])) == alpha_i
-        ]
+        rest: List[Dict[str, Any]] = []
+        for r in data["PopSteer"][1:]:
+            keep = True
+            if alpha_n is not None:
+                keep = keep and "alpha_n" in r and isinstance(r["alpha_n"], (int, float, str)) and int(float(r["alpha_n"])) == alpha_n
+            if alpha_i is not None:
+                keep = keep and "alpha_i" in r and isinstance(r["alpha_i"], (int, float, str)) and int(float(r["alpha_i"])) == alpha_i
+            if alpha_u is not None:
+                keep = keep and "alpha_u" in r and isinstance(r["alpha_u"], (int, float, str)) and int(float(r["alpha_u"])) == alpha_u
+            if keep:
+                rest.append(r)
+
+            ai = int(r.get("alpha_i"))
+            au = int(r.get("alpha_u"))
+            if ai is None or au is None or ai != au:
+                keep = False
+            if keep:
+                rest.append(r)
+
         data["PopSteer"] = first + rest
 
     # ------------------ pull baseline from FAIR → SASRec
@@ -1089,13 +1105,13 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         iteration += 1
         before = interactions.shape[0]
 
-        valid_users = interactions["user_id:token"].value_counts()
+        valid_users = interactions["session_id:token"].value_counts()
         valid_users = valid_users[valid_users >= n].index
-        interactions = interactions[interactions["user_id:token"].isin(valid_users)]
+        interactions = interactions[interactions["session_id:token"].isin(valid_users)]
 
-        valid_items = interactions["track_id:token"].value_counts()
+        valid_items = interactions["item_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["track_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["item_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -1115,7 +1131,7 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['track_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['item_id:token'].unique())} items.")
 
 
 
@@ -1179,7 +1195,7 @@ def retain_last_x_days(dataset: str,
 def keep_random_users(
                       dataset: str,
                       x: int,
-                      user_col: str = "user_id:token",
+                      user_col: str = "session_id:token",
                       sep: str = "\t",
                       seed: int = 42,
                       chunksize: int = 1_000_000):

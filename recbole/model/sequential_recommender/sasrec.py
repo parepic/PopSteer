@@ -20,11 +20,13 @@ from torch import nn
 import pandas as pd
 import numpy as np
 import math
-
+from scipy.optimize import linprog
 from recbole.model.abstract_recommender import SequentialRecommender
 from recbole.model.layers import TransformerEncoder
 from recbole.model.loss import BPRLoss
 from recbole.utils import create_pop_unpop_mappings, make_items_popular, make_items_unpopular,save_batch_activations,get_extreme_correlations
+from typing import Literal, Union, Optional
+Array = Union[np.ndarray, torch.Tensor]
 
 class SASRec(SequentialRecommender):
     r"""
@@ -57,6 +59,7 @@ class SASRec(SequentialRecommender):
         self.fair = False
         self.random = False
         self.ipr = False
+        self.pct = False
         self.hidden_dropout_prob = config["hidden_dropout_prob"]
         self.attn_dropout_prob = config["attn_dropout_prob"]
         self.hidden_act = config["hidden_act"]
@@ -180,13 +183,14 @@ class SASRec(SequentialRecommender):
             seq_output = self.forward(item_seq, item_seq_len)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
-            print("sukkaaaaaaaa!", self.fair)
             if self.fair:
                 scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
             elif self.random:
                 scores = self.random_reranker(scores=scores, top_k=self.a1)
             elif self.ipr:
                 scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.a1)
+            if self.pct:
+                scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
             return scores
 
 
@@ -459,3 +463,182 @@ class SASRec(SequentialRecommender):
             adjusted_scores = scores * boost_factor
         
         return adjusted_scores
+    
+    def _solve_personal_targets(self, p_u: np.ndarray, q_hat: np.ndarray, chunk: int = 5000) -> np.ndarray:
+        """Linear‑programming solver for personalised targets (2 groups)."""
+        B = p_u.shape[0]                 # users
+        gradient = p_u.mean(0) - q_hat   # len‑2
+        if np.allclose(gradient, 0):
+            return p_u.copy()
+        g = gradient / np.linalg.norm(gradient)  # len‑2, g0 + g1 = 0
+
+        tile_g = np.tile(g, (B, 1))      # (B,2) – per‑user grad direction
+        # per‑user upper limits ensuring q_hat_u stays in [0,1]
+        lim = np.where(tile_g > 0, p_u / (tile_g + 1e-10), (p_u - 1) / (tile_g + 1e-10)).min(1)
+
+        # equality constraint  sum_u gamma_u * g0 = sum_u (p_u0 - q_hat0)
+        A_eq_full = tile_g[:, 0].reshape(1, B)          # (1,B)
+        b_eq_full = np.array([(p_u[:, 0] - q_hat[0]).sum()])  # shape (1,)
+
+        gamma = np.empty(B)
+        solved = 0
+        while solved < B:
+            end = min(solved + chunk, B)
+            A_eq = A_eq_full[:, solved:end]
+            # account for already‑solved part
+            # subtract contribution of already‑solved users (only when solved>0)
+            b_eq = b_eq_full - (A_eq_full[:, :solved] @ gamma[:solved]).ravel() if solved else b_eq_full.copy()
+            bounds = [(0, lim[i]) for i in range(solved, end)]
+            res = linprog(c=np.ones(end - solved), A_eq=A_eq, b_eq=b_eq, bounds=bounds, method="highs")
+            gamma[solved:end] = res.x
+            solved = end
+
+        return p_u - gamma[:, None] * g   # (B,2)
+
+
+    def pct_rerank(
+        self,
+        scores: Array,
+        *,
+        list_size: Optional[int] = 250,
+        top_k: int = 10,
+        policy: Literal["Equal", "AvgEqual"] = "Equal",
+        p: float = 0.5,
+        personal: bool = True,
+        user_interest: Optional[Array] = None,
+        lambda_: float = 0.7,
+    ) -> Array:
+        """Post‑process *scores* so the Top‑k per user is PCT‑calibrated.
+
+        `user_interest` options when *personal* is **True**:
+        • 1‑D `(B,)` float → already the niche fraction per user.
+        • 2‑D `(B,C)` int  → item‑id history, zero‑padded.  Non‑zeros are
+            looked‑up in `niche_labels` to derive the fraction internally.
+        """
+        if list_size is not None and list_size < top_k:
+            raise ValueError("list_size must be None or >= top_k")
+
+        df = pd.read_csv(rf"./dataset/{self.dataset}/item_popularity_labels.csv")
+        ids  = df["item_id:token"].astype(int).values      # e.g. [1, 2, 3, …, 3417]
+        labs = df["popularity_label"].astype(int).values   # e.g. [1, 0, 1, …, 0]
+
+        # 2) Build a 1D BoolTensor of size (max_id+1,) so we can index by ID directly
+        max_id = ids.max()
+        niche_labels = np.zeros(max_id+1, dtype=bool)
+
+        # 3) Fill it: True where label == 1 (popular)
+        #    If your “popular” is actually encoded as -1, just change (labs == 1) to (labs == -1)
+        niche_labels[ids] = (labs == -1)
+
+        # ---- Normalise inputs ---------------------------------------------------
+        scores_np = scores.detach().cpu().numpy() if isinstance(scores, torch.Tensor) else np.asarray(scores)
+        niche_np  = niche_labels.detach().cpu().numpy().astype(bool) if isinstance(niche_labels, torch.Tensor) else np.asarray(niche_labels, bool)
+        B, N = scores_np.shape
+        if niche_np.shape != (N,):
+            raise ValueError("niche_labels must have shape (N,)")
+
+        # ---- Exposure weights & system target -----------------------------------
+        pos_weight = 1.0 / np.log2(np.arange(top_k) + 2)
+        exp_budget = pos_weight.sum()
+        if policy == "Equal":
+            target_ratio = np.array([1-p, p])
+        elif policy == "AvgEqual":
+            target_ratio = np.array([1 - niche_np.mean(), niche_np.mean()])
+        else:
+            raise ValueError("policy must be 'Equal' or 'AvgEqual'")
+
+        quality_sign = niche_np.astype(int)
+
+        # ---- Personalised targets ----------------------------------------------
+        if personal:
+            if user_interest is None:
+                raise ValueError("personal=True requires 'user_interest'")
+            ui = user_interest.detach().cpu().numpy() if isinstance(user_interest, torch.Tensor) else np.asarray(user_interest)
+            if ui.ndim == 2:  # (B,C) id history
+                if ui.shape[0] != B:
+                    raise ValueError("user_interest first dim must match batch size B")
+                frac = np.zeros(B)
+                for u in range(B):
+                    ids = ui[u][ui[u] != 0]
+                    # print(ids, " sikim?")
+                    if ids.size == 0:
+                        # print("suka blya")
+                        frac[u] = target_ratio[1]  # fallback to global ratio
+                    else:
+                        valid = ids[ids < N]  # ignore out‑of‑range
+                        # print(valid, "sikim 2")
+                        frac[u] = niche_np[valid].mean() if valid.size else target_ratio[1]
+                        # print(frac, "sikim 3")
+                # print(frac, " sikim 4")
+            elif ui.ndim == 1:
+                if ui.shape != (B,):
+                    raise ValueError("user_interest must be shape (B,) or (B,C)")
+                frac = ui.astype(float)
+            else:
+                raise ValueError("user_interest must be 1‑D or 2‑D tensor/array")
+            
+            p_u = np.column_stack([1.0 - frac, frac])
+            print(p_u.size, " sikim 5")
+
+            q_hat_u = self._solve_personal_targets(p_u, target_ratio, chunk=B) * exp_budget
+        else:
+            q_hat_u = np.tile(target_ratio * exp_budget, (B, 1))
+
+            # ---- Reranking core ------------------------------------------------------
+        reranked = scores_np.copy()
+
+        # sort once up-front
+        order_idx_full = (-scores_np).argsort(1)    # (B, N) indices
+
+        # if list_size is given, slice the candidate pool
+        if list_size is not None:
+            order_idx = order_idx_full[:, :list_size]      # (B, list_size)
+        else:
+            order_idx = order_idx_full                    # (B, N)
+
+        for u in range(B):
+            chosen   = np.full(top_k, -1, dtype=int)
+            cur_exp  = np.zeros(2)
+            sel      = set()
+            target_exp = q_hat_u[u]
+
+            # ------------ Pass-1  (keep highest items if safe) -------------
+            for pos in range(top_k):
+                for j in order_idx[u]:
+                    if j in sel:
+                        continue
+                    g = quality_sign[j]
+                    if cur_exp[g] + pos_weight[pos] <= target_exp[g]:
+                        sel.add(j); chosen[pos] = j; cur_exp[g] += pos_weight[pos]
+                        break
+
+            # ------------ Pass-2  (MMR fill the gaps) ----------------------
+            for pos in range(top_k):
+                if chosen[pos] != -1:
+                    continue
+                best_s, best_j = -np.inf, None
+                for rnk, j in enumerate(order_idx[u]):
+                    if j in sel:
+                        continue
+                    g = quality_sign[j]
+                    assume = cur_exp.copy(); assume[g] += pos_weight[pos]
+                    disp   = 0.5 * ((assume - target_exp) ** 2).sum()
+                    mmr    = lambda_ * (1 / (rnk + 1)) - (1 - lambda_) * disp
+                    if mmr > best_s:
+                        best_s, best_j = mmr, j
+                sel.add(best_j); chosen[pos] = best_j
+                cur_exp[quality_sign[best_j]] += pos_weight[pos]
+
+            # -----------  bump scores so the chosen items surface ----------
+            bump = scores_np[u].max() + 1
+            for r, j in enumerate(chosen[::-1]):      # reverse so pos-0 gets biggest bump
+                reranked[u, j] = bump + r
+
+        # return the same type the caller provided
+        return (
+            torch.as_tensor(reranked, dtype=scores.dtype, device=scores.device)
+            if isinstance(scores, torch.Tensor) else reranked
+        )
+    
+
+
