@@ -98,7 +98,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_i=0, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_i=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -115,9 +115,9 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_books.pth",
+                "base_path": "./saved/sasrec_music.pth",
                 # "load": "./saved/sasrec_lastfm-32-48.pth",
-                "sae_scale_size": [64, 96],
+                "sae_scale_size": [64, 128],
                 "sae_k": [32, 48],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
