@@ -54,8 +54,8 @@ SHORT_NAMES = {
 
 
 def tune(args):
-    if args.fair:
-        tune_FAIR(args)
+    if args.fair or args.random or args.ipr:
+        tune_baseline(args)
         exit()
 
     if args.config_json is None:
@@ -75,11 +75,10 @@ def tune(args):
     )
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
-    # change1 = [0.0, 0.5, 1, 1.5,  2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
-    # change2 = [0.0]
-    
+    trainer.model.N = 140
     change1= [0]
-    change2 = [0.0, 0.5, 1, 1.25, 1.5, 1.75, 2.0, 2.5]
+    change2 = [0.0, 2.0, 4.0, 6.0, 8.0]
+    # change2 = [0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.2]
 
 
     rows_raw = []
@@ -168,7 +167,7 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-god5.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_user_{config["dataset"]}-results.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -182,9 +181,16 @@ def tune(args):
                 "gini@10": r["giniindex@10"],
                 "cov@10": r["itemcoverage@10"],
                 "covn@10": r["itemcoveragen@10"],
+                'ndcgactive@10': r["ndcgactive@10"],
+                'ndcgpassive@10': r["ndcgpassive@10"],
+                'ndcgneutral@10': r["ndcgneutral@10"],
                 'ndcgtail@10': r["ndcgtail@10"],
                 'ndcgmid@10': r["ndcgmid@10"],
                 'ndcghead@10': r["ndcghead@10"],
+                'ndcgtailuser@10': r["ndcgtailuser@10"],
+                'ndcgmiduser@10': r["ndcgmiduser@10"],
+                'ndcgheaduser@10': r["ndcgheaduser@10"]
+
                 })
 
     return rows_raw, formatted_rows
@@ -192,14 +198,14 @@ def tune(args):
 
 
 
-def tune_FAIR(args):
+def tune_baseline(args):
     if args.config_json is None:
         config_dict = {
             "alpha": [0.5, 0.5],
             "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
             }
-
+    
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
         model_file=args.path, dict=config_dict
     )
@@ -229,15 +235,25 @@ def tune_FAIR(args):
         val  = baseline[k]
         formatted_cells.append(f"{val:.4f}")
     print(" | ".join(formatted_cells))
+    
 
+    
+    if args.fair:
+        model.fair = True
+    elif args.random:
+        model.random = True
+    elif args.ipr:
+        model.ipr = True
 
-
-
-    model.fair = True
-
-    change1 = [0.4, 0.6, 0.8, 1.0]
-    change2 = [0.01, 0.05, 0.1]
-
+    if args.fair:
+        change1 = [0.4, 0.6, 0.8, 1.0]
+        change2 = [0.01, 0.05, 0.1]
+    if args.random:
+        change1 = [15, 30, 50, 75, 100]
+        change2 = [0]
+    if args.ipr:
+        change1 = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1]
+        change2 = [0]
     # --- prepare header printing ---
     header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
     header_line = " | ".join(header_labels)
@@ -289,9 +305,14 @@ def tune_FAIR(args):
                 else:
                     formatted_cells.append(f"{val:.4f}")
             print(" | ".join(formatted_cells))
-
+    if args.ipr:
+        string = "ipr"
+    if args.fair:
+        string = "fair"
+    if args.random:
+        string = "random"
     # --- Write selected results to CSV (unchanged) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_fair_{config["dataset"]}-god5.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_{string}_{config["dataset"]}-results.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -311,5 +332,8 @@ def tune_FAIR(args):
                 'ndcgpassive@10': r["ndcgpassive@10"],
                 'ndcgneutral@10': r["ndcgneutral@10"],
                 'ndcgactive@10': r["ndcgactive@10"],
+                'ndcgtailuser@10': r["ndcgtailuser@10"],
+                'ndcgmiduser@10': r["ndcgmiduser@10"],
+                'ndcgheaduser@10': r["ndcgheaduser@10"],
                 })
     return rows_raw

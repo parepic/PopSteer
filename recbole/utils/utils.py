@@ -535,8 +535,8 @@ def compute_weighted_neuron_stats_by_row_item(
         side: str
     ) -> None:
     labels_csv_path = rf"./dataset/{dataset}/{side}_popularity_labels.csv"
-    popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_popular.csv"
-    unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpopular.csv"
+    popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
+    unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
     cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
     if activations.ndim != 2:
         raise ValueError("`activations` must have shape (B, N)")
@@ -619,8 +619,8 @@ def compute_neuron_stats_by_row(
         side: str
     ) -> None:
     labels_csv_path = rf"./dataset/{dataset}/{side}_popularity_labels.csv"
-    popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_popular.csv"
-    unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpopular.csv"
+    popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
+    unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
     cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
     if activations.ndim != 2:
         raise ValueError("`activations` must have shape (B, N)")
@@ -786,6 +786,13 @@ import os, csv, math, numpy as np
 import matplotlib.pyplot as plt
 
 
+import os
+import csv
+import math
+from pathlib import Path
+from typing import Dict, List, Any
+
+
 def plot_ndcg_vs_fairness(
     dataset: str,
     model: str = "LightGCN",
@@ -793,25 +800,38 @@ def plot_ndcg_vs_fairness(
     show: bool = True,
     facet: bool = True,
 ):
+    """Plot NDCG-driven evaluation figures.
+
+    Besides the existing *item-slice* plots (Head/Mid/Tail), this version also
+    generates *user‑slice* plots (Passive/Mid/Active) so that you get **two** 3‑panel
+    figures:
+
+    1. ``NDCG(head/mid/tail)   vs overall NDCG@10``  (items)
+    2. ``NDCG(passive/mid/active) vs overall NDCG@10`` (users)
+
+    The user‑slice figure is stored in ``figs["slice_user"]`` and is therefore
+    handled exactly like the original slice figure (``figs["slice"]``).
+    """
+
     if not dataset:
         raise ValueError("Please provide a dataset name, e.g. dataset='lastfm'.")
 
     # ------------------------------------------------------------------ paths
     files = {
-        "User-side":  rf"dataset/{dataset}/results/{model}_user_{dataset}-output5.csv",
-        "SASRecSteer":     rf"dataset/{dataset}/results/{model}_user_{dataset}-god5.csv",
-        "Both-sides": rf"dataset/{dataset}/results/{model}_full_{dataset}-noo.csv",
-        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-output5.csv",
+        "PopSteer":  rf"dataset/{dataset}/results/{model}_user_{dataset}-results.csv",
+        "Random-reranker":rf"dataset/{dataset}/results/{model}_random_{dataset}-results.csv",
+        "IPR": rf"dataset/{dataset}/results/{model}_ipr_{dataset}-results.csv",
+        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
     }
 
     # -------------------------------------------------------------- csv loader
-    def load_rows(path):
+    def load_rows(path: str) -> List[Dict[str, Any]]:
         if not os.path.isfile(path):
             return []
-        rows = []
+        rows: List[Dict[str, Any]] = []
         with open(path, newline="", encoding="utf-8") as f:
             for r in csv.DictReader(f):
-                numeric_row = {}
+                numeric_row: Dict[str, Any] = {}
                 for k, v in r.items():
                     try:
                         numeric_row[k] = float(v)
@@ -823,15 +843,14 @@ def plot_ndcg_vs_fairness(
     data = {lbl: load_rows(p) for lbl, p in files.items()}
 
     # ------------------ filter user-side rows by alpha_i (keep first row)
-    if alpha_i is not None and data["User-side"]:
-        first = data["User-side"][:1]
+    if alpha_i is not None and data["PopSteer"]:
+        first = data["PopSteer"][:1]
         rest  = [
-            r for r in data["User-side"][1:]
-            if "alpha_i" in r
-               and isinstance(r["alpha_i"], (int, float, str))
-               and int(float(r["alpha_i"])) == alpha_i
+            r for r in data["PopSteer"][1:]
+            if "alpha_i" in r and isinstance(r["alpha_i"], (int, float, str))
+            and int(float(r["alpha_i"])) == alpha_i
         ]
-        data["User-side"] = first + rest
+        data["PopSteer"] = first + rest
 
     # ------------------ pull baseline from FAIR → SASRec
     if data["FAIR"]:
@@ -840,10 +859,10 @@ def plot_ndcg_vs_fairness(
         if not data["FAIR"]:
             del data["FAIR"]
 
-    # ------------------ thresholds: 10 % & 5 % drops
-    baseline_ndcg = data["SASRec"][0].get("ndcg") if data.get("SASRec") else None
-    thr_10 = 0.90 * baseline_ndcg if baseline_ndcg is not None else None
-    thr_05 = 0.95 * baseline_ndcg if baseline_ndcg is not None else None
+    # ------------------ thresholds: 3 % & 5 % drops
+    baseline_ndcg = data.get("SASRec", [{}])[0].get("ndcg")
+    thr_03 = 0.97 * baseline_ndcg if baseline_ndcg is not None else None  # 3 % drop
+    thr_05 = 0.95 * baseline_ndcg if baseline_ndcg is not None else None  # 5 % drop
 
     # ------------------------------------------- style maps
     colours  = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
@@ -852,56 +871,111 @@ def plot_ndcg_vs_fairness(
     col_map  = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
     mrk_map  = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
 
-    figs = {}
+    figs: Dict[str, plt.Figure] = {}
 
-    # ---------------------------------------------------------------- slice plot
-    slice_keys   = ["ndcghead@10", "ndcgmid@10", "ndcgtail@10"]
-    slice_titles = {"ndcghead@10": "Head NDCG@10",
-                    "ndcgmid@10":  "Mid NDCG@10",
-                    "ndcgtail@10": "Tail NDCG@10"}
+    # ========================================================================
+    # 1) ITEM‑SLICE PLOT ───────────────────────── head / mid / tail
+    # ========================================================================
+    item_slice_keys   = ["ndcghead@10", "ndcgtail@10"]
+    item_slice_titles = {
+        "ndcghead@10": "Head NDCG@10",
+        "ndcgtail@10": "Tail NDCG@10"
+    }
 
-    if facet:
-        fig_slice, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
-        axes = np.atleast_1d(axes)
-    else:
-        fig_slice, ax = plt.subplots(figsize=(6, 4))
-        axes = [ax] * 3
-
-    for ax_idx, (ax, sk) in enumerate(zip(axes, slice_keys)):
-        for lbl, rows in data.items():
-            pts = [(r.get("ndcg"), r.get(sk)) for r in rows
-                   if r.get("ndcg") is not None and r.get(sk) is not None and not math.isnan(r[sk])]
-            if not pts:
-                continue
-            xs, ys = zip(*sorted(pts, key=lambda t: t[0]))
-            linestyle = "-" if len(xs) > 1 else "None"
-            ax.plot(xs, ys,
-                    marker=mrk_map[lbl], linestyle=linestyle,
-                    color=col_map[lbl],
-                    linewidth=1, markersize=6,
-                    label=lbl if sk == "ndcghead@10" else "_nolegend_")
-        # ---- add vertical lines (one label per legend)
-        if thr_10 is not None:
-            ax.axvline(thr_10, linestyle="--", linewidth=1, color="grey",
-                       label="10 % drop" if ax_idx == 0 else "_nolegend_")
-        if thr_05 is not None:
-            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey",
-                       label=" 5 % drop" if ax_idx == 0 else "_nolegend_")
-        ax.set_xlabel("NDCG@10 (overall)")
-        ax.set_ylabel(slice_titles[sk])
-        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
+    def _make_slice_figure(keys: List[str], titles: Dict[str, str], fig_key: str, super_title: str):
+        """Internal helper to avoid copy‑pasting slice code."""
         if facet:
-            ax.set_title(slice_titles[sk])
+            fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
+            axes = np.atleast_1d(axes)
+        else:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            axes = [ax] * 3  # type: ignore[assignment]
 
-    axes[0].legend(title="File", fontsize=8, frameon=True)
-    fig_slice.suptitle(f"{dataset}: NDCG(head/mid/tail) vs overall NDCG@10", y=1.02 if facet else 1.03)
-    fig_slice.tight_layout()
-    figs["slice"] = fig_slice
+        for ax_idx, (ax, sk) in enumerate(zip(axes, keys)):
+            for lbl, rows in data.items():
+                pts = [
+                    (r.get("ndcg"), r.get(sk))
+                    for r in rows
+                    if r.get("ndcg") is not None and r.get(sk) is not None and not math.isnan(r[sk])
+                ]
+                if not pts:
+                    continue
+                xs, ys = zip(*sorted(pts, key=lambda t: t[0]))
+                linestyle = "-" if len(xs) > 1 else "None"
+                ax.plot(
+                    xs,
+                    ys,
+                    marker=mrk_map[lbl],
+                    linestyle=linestyle,
+                    color=col_map[lbl],
+                    linewidth=1,
+                    markersize=6,
+                    label=lbl if sk == keys[0] else "_nolegend_",
+                )
 
-    # --------------------------------------------------- fairness scatter plots
-    fairness_specs = [("avgpop@10", "Average Popularity @10", "avgpop@10"),
-                      ("gini@10",   "Gini Index @10",         "gini@10"),
-                      ("covn@10",   "Coverage-5 @10",         "covn@10")]
+            # vertical drop lines (one label per legend)
+            if thr_03 is not None:
+                ax.axvline(
+                    thr_03,
+                    linestyle="--",
+                    linewidth=1,
+                    color="grey",
+                    label="3 % drop" if ax_idx == 0 else "_nolegend_",
+                )
+            if thr_05 is not None:
+                ax.axvline(
+                    thr_05,
+                    linestyle=":",
+                    linewidth=1,
+                    color="grey",
+                    label="5 % drop" if ax_idx == 0 else "_nolegend_",
+                )
+
+            ax.set_xlabel("NDCG@10 (overall)")
+            ax.set_ylabel(titles[sk])
+            ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
+            if facet:
+                ax.set_title(titles[sk])
+
+        axes[0].legend(title="File", fontsize=8, frameon=True)
+        fig.suptitle(super_title, y=1.02 if facet else 1.03)
+        fig.tight_layout()
+        figs[fig_key] = fig
+
+    # create original item‑slice figure
+    _make_slice_figure(
+        item_slice_keys,
+        item_slice_titles,
+        fig_key="slice",
+        super_title=f"{dataset}: NDCG(head/mid/tail) vs overall NDCG@10",
+    )
+
+    # # ========================================================================
+    # # 2) USER‑SLICE PLOT ───────────────────── passive / mid / active
+    # # ========================================================================
+    # user_slice_keys   = ["ndcgpassive@10", "ndcgneutral@10", "ndcgactive@10"]
+    # user_slice_titles = {
+    #     "ndcgpassive@10": "Passive Users NDCG@10",
+    #     "ndcgneutral@10":     "Neutral Users NDCG@10",
+    #     "ndcgactive@10":  "Active Users NDCG@10",
+    # }
+
+    # _make_slice_figure(
+    #     user_slice_keys,
+    #     user_slice_titles,
+    #     fig_key="slice_user",
+    #     super_title=f"{dataset}: NDCG(passive/mid/active) vs overall NDCG@10",
+    # )
+
+
+    # ========================================================================
+    # 3) FAIRNESS SCATTER PLOTS ───────────────────────────────────────────────
+    # ========================================================================
+    fairness_specs = [
+        ("avgpop@10", "Average Popularity @10", "avgpop@10"),
+        ("gini@10",   "Gini Index @10",         "gini@10"),
+        ("covn@10",   "Coverage-5 @10",         "covn@10"),
+    ]
 
     for metric_key, metric_title, dict_key in fairness_specs:
         fig, ax = plt.subplots()
@@ -910,12 +984,21 @@ def plot_ndcg_vs_fairness(
             ys = [r[dict_key] for r in rows if "ndcg" in r and dict_key in r]
             if not xs:
                 continue
-            ax.scatter(xs, ys, marker=mrk_map[lbl], label=lbl,
-                       edgecolors="none", alpha=0.85, color=col_map[lbl])
-        if thr_10 is not None:
-            ax.axvline(thr_10, linestyle="--", linewidth=1, color="grey", label="10 % drop")
+            ax.scatter(
+                xs,
+                ys,
+                marker=mrk_map[lbl],
+                label=lbl,
+                edgecolors="none",
+                alpha=0.85,
+                color=col_map[lbl],
+            )
+
+        if thr_03 is not None:
+            ax.axvline(thr_03, linestyle="--", linewidth=1, color="grey", label="3 % drop")
         if thr_05 is not None:
-            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey", label=" 5 % drop")
+            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey", label="5 % drop")
+
         ax.set_xlabel("NDCG@10")
         ax.set_ylabel(metric_title)
         ax.set_title(f"{dataset}: NDCG@10 vs {metric_title}")
@@ -928,6 +1011,57 @@ def plot_ndcg_vs_fairness(
         plt.show()
 
     return figs
+
+
+# ---------------------------------------------------------------------------
+# Helper: remove_sparse_users_items (unchanged, kept for completeness)
+# ---------------------------------------------------------------------------
+import pandas as pd
+import shutil
+
+def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset") -> None:
+    """Iteratively filter users/items with fewer than *n* interactions."""
+
+    ds_dir = Path(base_dir) / dataset
+    inter_path = ds_dir / f"{dataset}.inter"
+    inter_bak  = ds_dir / f"{dataset}.inter.original"
+
+    # --- Step 0: Backups (only once) ---
+    if not inter_bak.exists():
+        shutil.copy2(inter_path, inter_bak)
+
+    # --- Step 1: Load ---
+    interactions = pd.read_csv(inter_path, sep="\t", header=0)
+
+    # --- Step 2: Iterative filtering ---
+    iteration = 0
+    while True:
+        iteration += 1
+        before = interactions.shape[0]
+
+        valid_users = interactions["user_id:token"].value_counts()
+        valid_users = valid_users[valid_users >= n].index
+        interactions = interactions[interactions["user_id:token"].isin(valid_users)]
+
+        valid_items = interactions["artists_id:token"].value_counts()
+        valid_items = valid_items[valid_items >= n].index
+        interactions = interactions[interactions["artists_id:token"].isin(valid_items)]
+
+        after = interactions.shape[0]
+        print(f"Iteration {iteration}: {before} -> {after} interactions remain")
+        if after == before:
+            break
+
+    # --- Step 3: Overwrite originals (atomic‑ish) ---
+    tmp_inter = inter_path.with_suffix(".inter.tmp")
+    interactions.to_csv(tmp_inter, sep="\t", index=False)
+    tmp_inter.replace(inter_path)
+
+    print(
+        f"Done. Wrote {interactions.shape[0]} interactions and "
+        f"{len(interactions['artists_id:token'].unique())} items."
+    )
+
 
 
 import shutil
@@ -959,9 +1093,9 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         valid_users = valid_users[valid_users >= n].index
         interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
-        valid_items = interactions["artists_id:token"].value_counts()
+        valid_items = interactions["track_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index
-        interactions = interactions[interactions["artists_id:token"].isin(valid_items)]
+        interactions = interactions[interactions["track_id:token"].isin(valid_items)]
 
         after = interactions.shape[0]
         print(f"Iteration {iteration}: {before} -> {after} interactions remain")
@@ -981,7 +1115,7 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
     tmp_inter.replace(inter_path)
     # tmp_item.replace(item_path)
 
-    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['artists_id:token'].unique())} items.")
+    print(f"Done. Wrote {interactions.shape[0]} interactions and {len(interactions['track_id:token'].unique())} items.")
 
 
 
@@ -1287,11 +1421,13 @@ def replace_with_mappings(sequences: torch.Tensor, popular: bool, dataset: str) 
 
 
 def save_batch_activations(bulk_data, neuron_count, dataset, popular):
+    print(popular, " blya")
     if popular == True:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
-    if popular == False:
+    elif popular == False:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_unpop.h5"
-        
+    else:
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final.h5"
     bulk_data = bulk_data.permute(1, 0).detach().cpu().numpy()  # [neuron_count, batch_size]
     real_batch_size = bulk_data.shape[1]  # Might be < batch_size in final step
 
@@ -1314,56 +1450,77 @@ def save_batch_activations(bulk_data, neuron_count, dataset, popular):
             dset[:, current_cols:new_cols] = bulk_data
             
 
-def save_mean_SD(dataset, popular=None):
-    # Load your .h5 file
-    if popular == True:  
-        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
-    elif popular == False:  
-        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_unpop.h5"
-    dataset_name = 'dataset'  # Replace with actual dataset name inside the h5 file
+def save_mean_SD(dataset: str, *, popular: bool) -> int:
+    """
+    Compute row-wise mean and SD for the neuron-activation tensor in an .h5 file,
+    save them to CSV, and RETURN the sample count (n) as an int.
 
-    # Load the real indices from the filtered CSV
-    # index_csv = r"./dataset/ml-1m/nonzero_activations_sasrecsae_k48-32.csv"
-    # real_indices = pd.read_csv(index_csv, index_col=0).index.tolist()
+    Parameters
+    ----------
+    dataset : str
+        Name of the dataset subdirectory (e.g. "ml-1m").
+    popular : bool
+        True  → read the '_pop' file; False → read the '_unpop' file.
 
-    with h5py.File(file_path, 'r') as f:
-        data = f[dataset_name][()]  # Reads full dataset into memory
+    Returns
+    -------
+    int
+        Number of samples each mean/SD was computed from.
+    """
+    suffix   = "_pop" if popular else "_unpop"
+    suffix = "" if popular is None else suffix
+    h5_path  = Path(f"./dataset/{dataset}/neuron_activations_sasrecsae_final{suffix}.h5")
+    csv_path = Path(f"./dataset/{dataset}/user/neuron_stats{suffix}.csv")
+    dataset_name = "dataset"   # change if the key inside the HDF5 is different
 
-    # Compute mean and standard deviation for each row
-    means = np.mean(data, axis=1)
-    stds = np.std(data, axis=1)
-    # Combine into a DataFrame with the correct index
-    df = pd.DataFrame({
-        'mean': means,
-        'sd': stds,
-    })
+    # --- Load tensor -------------------------------------------------------
+    with h5py.File(h5_path, "r") as f:
+        data = f[dataset_name][()]            # shape: (n_neurons, n_samples)
 
-    if popular == True:  
-        output_csv_path = rf"./dataset/{dataset}/user/neuron_stats_popular.csv"
-    if popular == False:  
-        output_csv_path = rf"./dataset/{dataset}/user/neuron_stats_unpopular.csv"
-    df.to_csv(output_csv_path)
-    print(f"Row-wise mean and std saved to {output_csv_path}")
+    n_samples = data.shape[1]                # <-- what you wanted
+
+    # --- Compute stats -----------------------------------------------------
+    means = np.nanmean(data, axis=1)
+    stds  = np.nanstd(data, axis=1, ddof=0)
+
+    pd.DataFrame({"mean": means, "sd": stds}).to_csv(csv_path)
+    print(f"Row-wise mean & SD saved to {csv_path}")
+
+    return int(n_samples)
+
+
+def save_cohens_d(dataset: str, n1=None, n2=None) -> None:
+    """
+    Reads per-neuron summary stats for ‘popular’ and ‘unpopular’ users and
+    saves Cohen’s d (with sample-size–weighted pooled SD) to
+    dataset/<dataset>/user/cohens_d.csv.
     
-    
+    Expected columns in each CSV:
+        mean   – group mean
+        sd     – group standard deviation
+        n      – number of samples in that group
+    The index (first column) is treated as the neuron identifier.
+    """
+    base = Path(f"./dataset/{dataset}/user")
+    df1 = pd.read_csv(base / "neuron_stats_pop.csv", index_col=0)
+    df2 = pd.read_csv(base / "neuron_stats_unpop.csv", index_col=0)
 
-def save_cohens_d(dataset):
-    df1 = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_popular.csv", index_col=0)
-    df2 = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_unpopular.csv", index_col=0)
+    # Extract vectors for clarity
+    m1, s1= df1["mean"], df1["sd"],
+    m2, s2= df2["mean"], df2["sd"],
 
-    # Compute pooled standard deviation
-    s_pooled = np.sqrt((df1['sd']**2 + df2['sd']**2) / 2)
+    # Pooled standard deviation accounting for sample size
+    s_pooled = np.sqrt(((n1 - 1) * s1.pow(2) + (n2 - 1) * s2.pow(2)) / (n1 + n2 - 2))
 
-    # Compute Cohen's d
-    cohen_d = (df1['mean'] - df2['mean']) / s_pooled
+    # Cohen's d
+    d = (m1 - m2) / s_pooled
 
-    # Create result DataFrame with same index
-    df_result = pd.DataFrame({'cohens_d': cohen_d})
-
-    # Save to CSV with index column
-    df_result.to_csv(rf"./dataset/{dataset}/user/cohens_d.csv")
+    # Assemble result DataFrame
+    df_result = pd.DataFrame({"cohens_d": d})
+    df_result.to_csv(base / "cohens_d.csv")
 
     print("Cohen's d values saved to cohens_d.csv")
+
 
 
 

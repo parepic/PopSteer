@@ -77,7 +77,7 @@ class SASRec_SAE(SASRec):
         return scores
 
 
-    def full_sort_predict(self, interaction, popular=None):
+    def full_sort_predict(self, interaction, popular=None, findmean=False):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         # if popular == True:
@@ -92,8 +92,27 @@ class SASRec_SAE(SASRec):
                 item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
             # item_seq = replace_with_mappings(sequences=item_seq, popular=popular, dataset=self.dataset)
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            test_items_emb = self.item_embedding.weight
+            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
+            scores[:, 0] =  float("-inf")
+            # top_recs = torch.argsort(scores, dim=1, descending=True)[:, :10]
+            # df = pd.read_csv(rf"./dataset/{self.dataset}/item_popularity_labels.csv")
+            # label_map = dict(zip(df['item_id:token'], df['popularity_label']))
+            # item_ids = top_recs[:, 0].tolist()
+            # labels = [label_map.get(item_id, None) for item_id in item_ids]
+            # if popular == True:
+            #     bool_tensor = torch.tensor([int(label) == 1 for label in labels], dtype=torch.bool)
+            # else: 
+            #     bool_tensor = torch.tensor([int(label) == -1 for label in labels], dtype=torch.bool)
+
+            # new_tensor = self.sae_module_u.last_activations[bool_tensor]
+            # print((new_tensor).shape)
             save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
             return
+        elif findmean:
+            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
+
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight
@@ -258,13 +277,13 @@ class SAE(nn.Module):
      
                     # Update the recommendations for this sequence
                     data["recommendations"].append(topk_indices.tolist())
-     
+    
 
     def _build_steering_vector(self, dataset):
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
-        
+        self.N = 100
         if self.steer_dir == -1:
             combined = ([(i, d, "unpop")   for i, d in unpop_neurons])
         elif self.steer_dir == 1:
@@ -276,8 +295,8 @@ class SAE(nn.Module):
         combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
         top_neurons = combined_sorted[: self.N]
 
-        stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpopular.csv")
-        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_popular.csv")
+        stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpop.csv")
+        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_pop.csv")
 
         abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
                                 device=self.device, dtype=self.dtype)
@@ -297,9 +316,14 @@ class SAE(nn.Module):
             w = weights[i]
             if group == "unpop":
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
+                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
+
+                # mask = steer[neuron_idx, :] > unpop_mean 
                 steer[neuron_idx] += w * unpop_sd
             if group == "pop":
+                unpop_mean = stats_unpop.iloc[neuron_idx]["mean"]
                 pop_sd = stats_pop.iloc[neuron_idx]["sd"]
+                # mask = steer[neuron_idx, :] > unpop_mean 
                 steer[neuron_idx] -= w * pop_sd
 
         self.steer_vec = steer.to(self.device)
@@ -311,11 +335,12 @@ class SAE(nn.Module):
         if getattr(self, "N", None) in (None, 0):
             return pre_acts
         if not self._steer_ready:
-            self._build_steering_vector(dataset)
+            self._build_steering_vector(dataset=self.dataset)
         if self.steer_vec.device != pre_acts.device:
             self.steer_vec = self.steer_vec.to(pre_acts.device)
-
+        
         return pre_acts + self.steer_vec
+    
 
     def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None, dataset=None, pop_scores=None):
             sae_in = x - self.b_dec

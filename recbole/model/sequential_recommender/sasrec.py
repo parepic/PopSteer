@@ -41,9 +41,9 @@ class SASRec(SequentialRecommender):
         self.alpha = config['alpha'][1]
         self.dtype = torch.float32
 
-        self.steer = config['steer'][1]
-        self.steer_dir = config['steer_dir'][1]
-        self._steer_ready = False
+        # self.steer = config['steer'][1]
+        # self.steer_dir = config['steer_dir'][1]
+        # self._steer_ready = False
         # load parameters info
         self.n_layers = config["n_layers"]
         self.n_heads = config["n_heads"]
@@ -55,6 +55,8 @@ class SASRec(SequentialRecommender):
         self.a1 = config["alpha"][0]
         self.a2 = config["alpha"][1]
         self.fair = False
+        self.random = False
+        self.ipr = False
         self.hidden_dropout_prob = config["hidden_dropout_prob"]
         self.attn_dropout_prob = config["attn_dropout_prob"]
         self.hidden_act = config["hidden_act"]
@@ -178,9 +180,13 @@ class SASRec(SequentialRecommender):
             seq_output = self.forward(item_seq, item_seq_len)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
-
+            print("sukkaaaaaaaa!", self.fair)
             if self.fair:
                 scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
+            elif self.random:
+                scores = self.random_reranker(scores=scores, top_k=self.a1)
+            elif self.ipr:
+                scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.a1)
             return scores
 
 
@@ -304,8 +310,8 @@ class SASRec(SequentialRecommender):
         combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
         top_neurons = combined_sorted[: self.N]
 
-        stats_unpop = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_unpopular.csv")
-        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_popular.csv")
+        stats_unpop = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_unpop.csv")
+        stats_pop   = pd.read_csv(rf"./dataset/{dataset}/user/neuron_stats_pop.csv")
 
         abs_cohens = torch.tensor([abs(c) for _, c, _ in top_neurons],
                                 device=self.device, dtype=self.dtype)
@@ -342,3 +348,114 @@ class SASRec(SequentialRecommender):
             self.steer_vec = self.steer_vec.to(pre_acts.device)
 
         return pre_acts + self.steer_vec
+
+
+    def random_reranker(
+        self,
+        scores: torch.Tensor,
+        top_k: int = 50,
+        sample_k: int = 10,
+        boost_margin: float = 1.0,
+        seed: int = None
+    ):
+        """
+        Args:
+            scores:      Tensor of shape [B, N]
+            top_k:       How many of the highest‐scoring indices to consider (default 50)
+            sample_k:    How many to randomly sample from those top_k (default 10)
+            boost_margin:Base increment unit for boosting (default 1.0)
+            seed:        Optional random seed for reproducibility
+        Returns:
+            boosted_scores: Tensor of shape [B, N] with the selected indices boosted
+            selected_idx:   LongTensor of shape [B, sample_k] giving the boosted indices per row
+        """
+        if seed is not None:
+            torch.manual_seed(seed)
+
+        B, N = scores.shape
+
+        # 1) Get top_k indices per row
+        topk_vals, topk_idx = torch.topk(scores, top_k, dim=1)  # shapes: [B, top_k]
+
+        # 2) Randomly sample sample_k of those top_k **without** replacement
+        #    This gives positions in the topk array (0..top_k-1), shape [B, sample_k]
+        rand_vals = torch.ones(B, top_k)
+        samp_pos = torch.multinomial(rand_vals, sample_k, replacement=True)
+
+        # 3) Map back to the original indices in [0..N)
+        batch_idx = torch.arange(B).unsqueeze(1).expand(-1, sample_k)  # [B, sample_k]
+        selected_idx = topk_idx[batch_idx, samp_pos]                  # [B, sample_k]
+
+        # 4) Compute per‐row max scores so we know where to boost from
+        row_max, _ = torch.max(scores, dim=1, keepdim=True)           # [B, 1]
+
+        # 5) Build boost values so that
+        #      - the first sampled index gets row_max + sample_k*boost_margin
+        #      - the next gets row_max + (sample_k-1)*boost_margin
+        #      - … down to row_max + 1*boost_margin
+        boost_steps = torch.arange(sample_k, 0, -1, device=scores.device).float()  # [sample_k]
+        boost_vals = row_max + boost_steps.unsqueeze(0) * boost_margin            # [B, sample_k]
+
+        # 6) Clone and scatter the boosts into a copy of the original scores
+        boosted_scores = scores.clone()
+        boosted_scores[batch_idx, selected_idx] = boost_vals
+
+        return boosted_scores
+
+
+    def ipr_baseline(self, scores: torch.Tensor, dataset: str, alpha: float, long_list_size: int = 250) -> torch.Tensor:
+        """
+        Implements the IPR baseline to adjust scores for popularity bias mitigation.
+        Loads popularity scores from the specified CSV file based on the dataset.
+        Assumes the nth column in scores corresponds to item_id n (0-based indexing).
+        Optionally applies the adjustment only to a long list of top candidates per batch.
+
+        Args:
+            scores: Tensor of shape (B, N) containing relevance scores.
+            dataset: The dataset name to construct the CSV file path.
+            alpha: Hyperparameter controlling the degree of bias mitigation.
+            long_list_size: Optional; if provided, select the top long_list_size items per batch based on original scores,
+                            apply IPR only to them, and set other scores to -inf to exclude from ranking.
+
+        Returns:
+            Adjusted scores tensor of shape (B, N).
+        """
+        # Load the CSV file
+        file_path = f"./dataset/{dataset}/item_popularity_labels.csv"
+        df = pd.read_csv(file_path)
+        
+        # Assume columns are 'item_id' and 'pop_score'; map item_id to pop_score
+        pop_dict = dict(zip(df['item_id:token'], df['pop_score']))
+        
+        # Derive item_ids as 0 to N-1
+        N = scores.shape[1]
+        item_ids = list(range(N))
+        
+        # Get pop values for the derived item_ids
+        pop_list = [pop_dict.get(item_id, 0.0) for item_id in item_ids]
+        pop = torch.tensor(pop_list, dtype=torch.float, device=scores.device)
+        
+        if pop.max() == 0:
+            raise ValueError("Popularity values must include at least one positive value.")
+        
+        rho = pop / pop.max()
+        boost_factor = 1 + alpha * (1 - rho)
+        boost_factor = boost_factor.unsqueeze(0).expand(scores.shape[0], -1)
+        
+        adjusted_scores = scores.clone()
+        
+        if long_list_size is not None:
+            # Set all to -inf initially
+            adjusted_scores.fill_(-float('inf'))
+            # For each batch, select top long_list_size indices and apply boost to those
+            for b in range(scores.shape[0]):
+                # Get top indices based on original scores
+                _, top_indices = torch.topk(scores[b], min(long_list_size, N), sorted=False)
+                # Apply boost to those positions
+                adjusted_scores[b, top_indices] = scores[b, top_indices] * boost_factor[b, top_indices]
+        
+        else:
+            # Apply to all
+            adjusted_scores = scores * boost_factor
+        
+        return adjusted_scores

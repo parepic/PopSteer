@@ -719,15 +719,7 @@ class Trainer(AbstractTrainer):
         r"""Evaluate the model based on the eval data.
 
         Args:
-            eval_data (DataLoader): the eval data
-            load_best_model (bool, optional): whether load the best model in the training process, default: True.
-                                              It should be set True, if users want to test the model after training.
-            model_file (str, optional): the saved model file, default: None. If users want to test the previously
-                                        trained model file, they can set this parameter.
-            show_progress (bool): Show the progress of evaluate epoch. Defaults to ``False``.
-
-        Returns:
-            collections.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
+            eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
         """
         
         checkpoint_file = model_file
@@ -750,7 +742,7 @@ class Trainer(AbstractTrainer):
             if show_progress
             else data
         )
-        times = 250
+        times = 1000
         cur = 0
         for batch_idx, batched_data in enumerate(iter_data):
             if cur >= times:
@@ -765,13 +757,20 @@ class Trainer(AbstractTrainer):
             with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
                 self.model.full_sort_predict(interaction, popular=True)
                 self.model.full_sort_predict(interaction, popular=False)
-        save_mean_SD(self.dataset, popular=True)
-        save_mean_SD(self.dataset, popular=False)
-        save_cohens_d(self.dataset)
+                self.model.full_sort_predict(interaction, findmean=True)
+
+
+        n1 = save_mean_SD(self.dataset, popular=True)
+        n2 = save_mean_SD(self.dataset, popular=False)
+        n3 = save_mean_SD(self.dataset, popular=None)
+
+        save_cohens_d(self.dataset, n1=n1, n2=n2)
         if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
             os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")
         if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5"):
             os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5")
+        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5"):
+            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5")
 
 
 

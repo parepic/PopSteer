@@ -34,8 +34,6 @@ from recbole.evaluator.utils import _binary_clf_curve
 from recbole.evaluator.base_metric import AbstractMetric, TopkMetric, LossMetric
 from recbole.utils import EvaluatorType
 
-    
-
 
 
 class Deep_LT_Coverage(AbstractMetric):
@@ -378,107 +376,6 @@ class NDCGMid(NDCGGroup):
 
 
 
-# class NDCGUserGroup(TopkMetric):
-#     """
-#     nDCG@K computed only over a subset of users, selected by `data.label`.
-
-#     Expects:
-#         - rec.topk  : bool hit matrix, shape [n_users, K]  (from TopkMetric.used_info)
-#         - data.label: shape [n_users], int labels (-1, 0, 1, …)
-
-#     Parameters
-#     ----------
-#     config : dict
-#     user_label : int
-#         Which label value to keep (e.g. -1 for 'tail' users)
-#     name : str
-#         Metric name to report (e.g. 'ndcgtail_user')
-#     skip_zero_den : bool
-#         If True, rows with zero relevant items are set to NaN (ignored in mean).
-#         If False, they are set to 0.0.
-#     """
-#     metric_need = ["rec.topk", "data.user_label"]
-
-#     def __init__(self, config, user_label, name, skip_zero_den=False):
-#         super().__init__(config)
-#         self.user_label = user_label
-#         self.name = name
-#         self.skip_zero_den = skip_zero_den
-
-#     def calculate_metric(self, dataobject):
-#         # parent provides pos_index (hits) and pos_len (#positives) for ALL users
-#         pos_index, pos_len = super().used_info(dataobject)
-
-#         labels = dataobject.get("data.user_label")
-
-#         if labels is None:
-#             raise KeyError("`data.user_label` not found in dataobject. Add it to metric_need.")
-#         if isinstance(labels, torch.Tensor):
-#             labels = labels.cpu().numpy()
-
-#         user_mask = (labels == self.user_label)
-#         # Handle the (rare) case where the mask is empty
-#         if not np.any(user_mask):
-#             K = pos_index.shape[1]
-#             empty = np.zeros((0, K), dtype=np.float64)
-#             return self.topk_result(self.name, empty)
-
-#         pos_index_g = pos_index[user_mask]
-#         pos_len_g = pos_len[user_mask]
-
-#         result = self.metric_info(pos_index_g, pos_len_g)
-#         return self.topk_result(self.name, result)
-
-
-#     # ---------- same helper as before ----------
-#     def metric_info(self, pos_index, pos_len):
-#         """Exactly the same logic as in your NDCGGroup.metric_info."""
-#         K = pos_index.shape[1]
-
-#         # ideal length per user = min(#relevant, K)
-#         idcg_len = np.where(pos_len > K, K, pos_len)
-
-#         # rank discounts
-#         ranks = np.arange(1, K + 1, dtype=np.float64)
-#         discounts = 1.0 / np.log2(ranks + 1)
-
-#         # prefix sums for IDCG
-#         idcg_full = np.cumsum(discounts)
-#         idcg = np.tile(idcg_full, (pos_index.shape[0], 1))
-#         for row, idx in enumerate(idcg_len):
-#             if idx <= 0:
-#                 idcg[row, :] = 1.0  # avoid div-by-zero
-#             elif idx < K:
-#                 idcg[row, idx:] = idcg[row, idx - 1]
-
-#         # DCG
-#         dcg = np.cumsum(np.where(pos_index, discounts, 0.0), axis=1)
-#         ndcg = dcg / idcg
-
-#         zero_mask = (pos_len == 0)
-#         if self.skip_zero_den:
-#             ndcg[zero_mask, :] = np.nan
-#         else:
-#             ndcg[zero_mask, :] = 0.0
-#         return ndcg
-
-
-
-# class NDCGUserTail(NDCGUserGroup):
-#     def __init__(self, config):
-#         super().__init__(config, user_label=-1, name="ndcgusertail")
-
-
-# class NDCGUserMid(NDCGUserGroup):
-#     def __init__(self, config):
-#         super().__init__(config, user_label=0, name="ndcgusermid")
-
-
-# class NDCGUserHead(NDCGUserGroup):
-#     def __init__(self, config):
-#         super().__init__(config, user_label=1, name="ndcguserhead")
-
-
 class NDCG(TopkMetric):
     r"""NDCG_ (also known as normalized discounted cumulative gain) is a measure of ranking quality,
     where positions are discounted logarithmically. It accounts for the position of the hit by assigning
@@ -546,10 +443,14 @@ class NDCGUserGroup(TopkMetric):
         df = pd.read_csv(path, usecols=["user_id:token", column])
 
         # cache the user_id set for this subgroup
-        self.users = set(
-            df.loc[df[column] == label, "user_id:token"].astype(int)
-        )
-
+        if label == 1:
+            self.users = set(
+                df.loc[df[column] == 1, "user_id:token"].astype(int)
+            )
+        else:
+            self.users = set(
+                df.loc[df[column] != 1, "user_id:token"].astype(int)
+            )
         self.name = name
         self.skip_zero_den = False   # same semantics as in NDCGGroup
 

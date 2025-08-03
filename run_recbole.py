@@ -27,10 +27,10 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
-    # retain_last_x_days(dataset="lfm1b-tracks", days=712)
+    # retain_last_x_days(dataset="music", days=535)
     # exit()
-    # keep_random_users(dataset="lfm1b-artists", x=1000)
-    # remove_sparse_users_items(20, "lfm1b-artists")
+    # keep_random_users(dataset="music", x=1500)
+    # remove_sparse_users_items(10, "music")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -49,6 +49,9 @@ if __name__ == "__main__":
     parser.add_argument("--plot", action="store_true", help="Whether to test model")
 
     parser.add_argument("--fair", action="store_true", help="Whether to use FAIR")
+    parser.add_argument("--random", action="store_true", help="Whether to use random reranker")
+    parser.add_argument("--ipr", action="store_true", help="Whether to use random reranker")
+
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
 
     parser.add_argument("--tune", action="store_true", help="Whether to train model")
@@ -95,7 +98,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_i=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_i=0, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -116,7 +119,7 @@ if __name__ == "__main__":
                 # "load": "./saved/sasrec_lastfm-32-48.pth",
                 "sae_scale_size": [64, 96],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
