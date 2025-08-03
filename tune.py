@@ -13,7 +13,7 @@ PCT_METRICS = {
 }
 
 
-fieldnames = ["alpha_u", "alpha_i", "ndcg", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgpassive@10', 
+fieldnames = ["alpha_u", "alpha_n", "alpha_i", "ndcg", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgpassive@10', 
               'ndcgneutral@10', 'ndcgactive@10', 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
               'ndcgtailuser@10', 'ndcgmiduser@10', 'ndcgheaduser@10']
 
@@ -54,7 +54,7 @@ SHORT_NAMES = {
 
 
 def tune(args):
-    if args.fair or args.random or args.ipr:
+    if args.fair or args.random or args.ipr or args.pct:
         tune_baseline(args)
         exit()
 
@@ -75,9 +75,10 @@ def tune(args):
     )
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
-    trainer.model.N = 140
-    change1= [0]
-    change2 = [0.0, 2.0, 4.0, 6.0, 8.0]
+    # trainer.model.N = 140
+    change1 = [0, 0.5, 1.0, 1.5, 2.0]
+    change2 = [0, 0.5, 1.0, 1.5, 2.0]
+    change3 = [0, 0.5, 1, 1.5, 2]
     # change2 = [0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.2]
 
 
@@ -94,27 +95,31 @@ def tune(args):
     rows_raw.append({
         'alpha_u': 0,
         'alpha_i': 0,
+        'alpha_n': 0,
         **{k: test_result[k] for k in metric_keys}
     })
+    for c3 in change3:
+        for c1 in change1:
+            for c2 in change2:
+                trainer.model.sae_module_u.d_min = c3
+                trainer.model.sae_module_u.steer_dir = 0
+                trainer.model.sae_module_u.beta = c1
+                trainer.model.sae_module_u.alpha = c2
+                trainer.model.sae_module_u._steer_ready = False
 
-    for c1 in change1:
-        for c2 in change2:
-            trainer.model.sae_module_u.steer_dir = c1
-            trainer.model.sae_module_u.alpha = c2
-            trainer.model.sae_module_u._steer_ready = False
-
-            test_result = trainer.evaluate(
-                valid_data,
-                model_file=args.path,
-                load_best_model=False,
-                show_progress=config["show_progress"]
-            )
-            # trainer.model.restore_item_e = None
-            rows_raw.append({
-                'alpha_u': c2,
-                'alpha_i': c1,
-                **{k: test_result[k] for k in metric_keys}
-            })
+                test_result = trainer.evaluate(
+                    valid_data,
+                    model_file=args.path,
+                    load_best_model=False,
+                    show_progress=config["show_progress"]
+                )
+                # trainer.model.restore_item_e = None
+                rows_raw.append({
+                    'alpha_u': c2,
+                    'alpha_i': c1,
+                    'alpha_n': c3,
+                    **{k: test_result[k] for k in metric_keys}
+                })
 
     # Baseline: first (alpha_u, alpha_i) pair (assumes change lists start with 0.0)
     baseline = rows_raw[0]
@@ -124,7 +129,7 @@ def tune(args):
     show_zero_pct_on_baseline = False  # set True if you want (+0.00%)
 
     # Headers (rename alpha columns)
-    header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
+    header_labels = ['alpha_u', 'alpha_i', 'alpha_n'] + [SHORT_NAMES[k] for k in metric_keys]
 
     # Build formatted rows
     formatted_rows = []
@@ -133,6 +138,7 @@ def tune(args):
         formatted_row = {
             'alpha_u': f"{r['alpha_u']:.2f}",
             'alpha_i': f"{r['alpha_i']:.2f}",
+            'alpha_n': f"{r['alpha_n']:.2f}"
         }
         for k in metric_keys:
             val  = r[k]
@@ -176,6 +182,7 @@ def tune(args):
             writer.writerow({
                 "alpha_u": r["alpha_u"],
                 "alpha_i": r["alpha_i"],
+                "alpha_n": r["alpha_n"],
                 "ndcg": r["ndcg@10"],
                 "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
@@ -244,16 +251,24 @@ def tune_baseline(args):
         model.random = True
     elif args.ipr:
         model.ipr = True
+    elif args.pct:
+        model.pct = True
 
     if args.fair:
         change1 = [0.4, 0.6, 0.8, 1.0]
         change2 = [0.01, 0.05, 0.1]
+
     if args.random:
         change1 = [15, 30, 50, 75, 100]
         change2 = [0]
     if args.ipr:
-        change1 = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1]
+        change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0]
+    if args.pct:
+        # change1 = [0.2, 0.4, 0.6, 0.8, 1.0]
+        change1 = [0.1, 0.3, 0.5, 0.7, 0.9]
+        change2 = [0.01, 0.05, 0.1]
+
     # --- prepare header printing ---
     header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
     header_line = " | ".join(header_labels)
@@ -311,6 +326,8 @@ def tune_baseline(args):
         string = "fair"
     if args.random:
         string = "random"
+    if args.pct:
+        string = "pct"
     # --- Write selected results to CSV (unchanged) ---
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_{string}_{config["dataset"]}-results.csv'
 

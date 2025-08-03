@@ -27,10 +27,10 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
-    # retain_last_x_days(dataset="music", days=535)
+    # retain_last_x_days(dataset="music", days=178)
     # exit()
-    # keep_random_users(dataset="music", x=1500)
-    # remove_sparse_users_items(10, "music")
+    # keep_random_users(dataset="yoochoose-clicks", x=25000)
+    # remove_sparse_users_items(5, "yoochoose-clicks")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="music", alpha_i=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=0, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 0.75],
+                "alpha": [1.5, 3],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
@@ -162,6 +162,10 @@ if __name__ == "__main__":
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
             model_file=args.path, dict=config_dict
         )
+        model.sae_module_u.N=2048
+        model.sae_module_u.alpha=3
+        model.sae_module_u.beta=1
+
         if args.fair:
             model.fair = True
             model.a1 = 0.9
@@ -172,7 +176,7 @@ if __name__ == "__main__":
             trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
-            valid_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [
