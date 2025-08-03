@@ -116,7 +116,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_music.pth",
-                # "load": "./saved/sasrec_lastfm-32-48.pth",
+                "load": "./saved/sasrec_music-32-48.pth",
                 "sae_scale_size": [64, 128],
                 "sae_k": [32, 48],
                 "learning_rate": 1e-3,
