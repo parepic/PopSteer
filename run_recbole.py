@@ -119,7 +119,7 @@ if __name__ == "__main__":
                 "load": "./saved/sasrec_music-32-48.pth",
                 "sae_scale_size": [64, 128],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-3,
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
