@@ -51,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("--fair", action="store_true", help="Whether to use FAIR")
     parser.add_argument("--random", action="store_true", help="Whether to use random reranker")
     parser.add_argument("--ipr", action="store_true", help="Whether to use random reranker")
+    parser.add_argument("--pct", action="store_true", help="Whether to use random reranker")
 
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
 
@@ -119,7 +120,7 @@ if __name__ == "__main__":
                 "load": "./saved/sasrec_music-32-48.pth",
                 "sae_scale_size": [64, 128],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-5,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
