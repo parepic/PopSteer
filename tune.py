@@ -77,7 +77,7 @@ def tune(args):
     trainer.eval_collector.data_collect(train_data)
     # trainer.model.N = 140
     change1 = [2.0]
-    change2 = [ 2.0]
+    change2 = [2.0]
     change3 = [0]
     # change2 = [0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.2]
 
