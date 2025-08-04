@@ -121,7 +121,7 @@ if __name__ == "__main__":
                 # "load": "./saved/sasrec_music-32-48.pth",
                 "sae_scale_size": [64, 128],
                 "sae_k": [32, 64],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
@@ -151,8 +151,8 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [1.5, 3],
-                "steer": [0, 0],
+                "alpha": [0.1, 1.5],
+                "steer": [1, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        # model.sae_module_u.beta=1
+        model.sae_module_i.beta=0.1
 
         if args.fair:
             model.fair = True
@@ -197,7 +197,7 @@ if __name__ == "__main__":
             ]
 
         max_key_len = max(len(k) for k in keys)
-
+        
         # print header
         print(f"{'Metric':<{max_key_len}} | Value")
         print(f"{'-'*max_key_len}-|-------")
