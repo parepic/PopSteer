@@ -118,7 +118,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_music.pth",
-                "load": "./saved/sasrec_music-32-48.pth",
+                # "load": "./saved/sasrec_music-32-48.pth",
                 "sae_scale_size": [64, 128],
                 "sae_k": [32, 64],
                 "learning_rate": 1e-4,
@@ -163,9 +163,9 @@ if __name__ == "__main__":
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
             model_file=args.path, dict=config_dict
         )
-        model.sae_module_u.N=2048
-        model.sae_module_u.alpha=3
-        model.sae_module_u.beta=1
+        # model.sae_module_u.N=2048
+        # model.sae_module_u.alpha=3
+        # model.sae_module_u.beta=1
 
         if args.fair:
             model.fair = True
