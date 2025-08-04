@@ -37,9 +37,9 @@ if __name__ == "__main__":
     # }
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
-    create_item_popularity_csv("ml-1m", 0.2)
+    # create_item_popularity_csv("ml-1m", 0.2)
     # plot_ndcg_vs_fairness(dataset="Amazon_Gift_Cards", alpha_i=0.0, model="SASRec")
-    exit()
+    # exit()
     # make_labels(dataset="yoochoose-clicks")
     # exit()
     parser = argparse.ArgumentParser()
