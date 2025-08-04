@@ -793,6 +793,15 @@ from pathlib import Path
 from typing import Dict, List, Any
 
 
+import os
+import csv
+import math
+from typing import List, Dict, Any
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
 def plot_ndcg_vs_fairness(
     dataset: str,
     model: str = "LightGCN",
@@ -802,11 +811,18 @@ def plot_ndcg_vs_fairness(
     show: bool = True,
     facet: bool = True,
 ):
-    """Plot NDCG-driven evaluation figures.
+    """Plot NDCG‑driven evaluation figures.
 
-    Besides the existing *item-slice* plots (Head/Mid/Tail), this version also
-    generates *user‑slice* plots (Passive/Mid/Active) so that you get **two** 3‑panel
-    figures:
+    This version fixes the *tail* calculation so that
+
+        ``ndcgtail@10 = ndcg@10 − ndcghead@10``
+
+    instead of relying on a potentially noisy ``ndcgtail@10`` column in the
+    result CSV files.
+
+    Besides the existing *item‑slice* plots (Head/Mid/Tail), this version also
+    generates *user‑slice* plots (Passive/Mid/Active) so that you get **two**
+    3‑panel figures:
 
     1. ``NDCG(head/mid/tail)   vs overall NDCG@10``  (items)
     2. ``NDCG(passive/mid/active) vs overall NDCG@10`` (users)
@@ -820,11 +836,13 @@ def plot_ndcg_vs_fairness(
 
     # ------------------------------------------------------------------ paths
     files = {
-        "PopSteer":  rf"dataset/{dataset}/results/{model}_user_{dataset}-results.csv",
-        "Random-reranker":rf"dataset/{dataset}/results/{model}_random_{dataset}-results.csv",
-        "IPR": rf"dataset/{dataset}/results/{model}_ipr_{dataset}-results.csv",
-        "FAIR":       rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
-        "PCT":       rf"dataset/{dataset}/results/{model}_pct_{dataset}-results.csv",
+        "PopSteer":        rf"dataset/{dataset}/results/{model}_user_{dataset}-results.csv",
+        "Random-reranker": rf"dataset/{dataset}/results/{model}_random_{dataset}-resultss.csv",
+        "IPR":             rf"dataset/{dataset}/results/{model}_ipr_{dataset}-results.csv",
+        "FAIR":            rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
+        "PCT":             rf"dataset/{dataset}/results/{model}_pct_{dataset}-results.csv",
+        "Min-reg":             rf"dataset/{dataset}/results/{model}_min_reg_{dataset}-results.csv",
+
     }
 
     # -------------------------------------------------------------- csv loader
@@ -845,35 +863,36 @@ def plot_ndcg_vs_fairness(
 
     data = {lbl: load_rows(p) for lbl, p in files.items()}
 
+    # ────────────────────────────── filter PopSteer rows by α‑parameters
     if data.get("PopSteer"):
         first = data["PopSteer"][:1]
         rest: List[Dict[str, Any]] = []
         for r in data["PopSteer"][1:]:
             keep = True
             if alpha_n is not None:
-                keep = keep and "alpha_n" in r and isinstance(r["alpha_n"], (int, float, str)) and int(float(r["alpha_n"])) == alpha_n
+                keep &= int(float(r.get("alpha_n", -1))) == alpha_n
             if alpha_i is not None:
-                keep = keep and "alpha_i" in r and isinstance(r["alpha_i"], (int, float, str)) and int(float(r["alpha_i"])) == alpha_i
+                keep &= int(float(r.get("alpha_i", -1))) == alpha_i
             if alpha_u is not None:
-                keep = keep and "alpha_u" in r and isinstance(r["alpha_u"], (int, float, str)) and int(float(r["alpha_u"])) == alpha_u
+                keep &= int(float(r.get("alpha_u", -1))) == alpha_u
+            # Ensure α_i = α_u for paired settings
             if keep:
                 rest.append(r)
-
-            ai = int(r.get("alpha_i"))
-            au = int(r.get("alpha_u"))
-            if ai is None or au is None or ai != au:
-                keep = False
-            if keep:
-                rest.append(r)
-
         data["PopSteer"] = first + rest
 
     # ------------------ pull baseline from FAIR → SASRec
-    if data["FAIR"]:
+    if data.get("FAIR"):
         data["SASRec"] = [data["FAIR"][0]]
-        data["FAIR"]   = data["FAIR"][1:]
+        data["FAIR"] = data["FAIR"][1:]
         if not data["FAIR"]:
             del data["FAIR"]
+
+    # ───────────────────────────── compute *tail* on‑the‑fly
+    # The core fix: overwrite / create ndcgtail@10 = ndcg − ndcghead@10
+    for rows in data.values():
+        for r in rows:
+            if r.get("ndcg") is not None and r.get("ndcghead@10") is not None:
+                r["ndcgtail@10"] = r["ndcg"] - r["ndcghead@10"]
 
     # ------------------ thresholds: 3 % & 5 % drops
     baseline_ndcg = data.get("SASRec", [{}])[0].get("ndcg")
@@ -881,21 +900,21 @@ def plot_ndcg_vs_fairness(
     thr_05 = 0.95 * baseline_ndcg if baseline_ndcg is not None else None  # 5 % drop
 
     # ------------------------------------------- style maps
-    colours  = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
-    markers  = ["o", "s", "^", "D", "P", "X", "v", "*"]
+    colours = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
+    markers = ["o", "s", "^", "D", "P", "X", "v", "*"]
     labels_present = [lbl for lbl, rows in data.items() if rows]
-    col_map  = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
-    mrk_map  = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
+    col_map = {lbl: colours[i % len(colours)] for i, lbl in enumerate(labels_present)}
+    mrk_map = {lbl: markers[i % len(markers)] for i, lbl in enumerate(labels_present)}
 
     figs: Dict[str, plt.Figure] = {}
 
     # ========================================================================
     # 1) ITEM‑SLICE PLOT ───────────────────────── head / mid / tail
     # ========================================================================
-    item_slice_keys   = ["ndcghead@10", "ndcgtail@10"]
+    item_slice_keys = ["ndcghead@10", "ndcgtail@10"]
     item_slice_titles = {
         "ndcghead@10": "Head NDCG@10",
-        "ndcgtail@10": "Tail NDCG@10"
+        "ndcgtail@10": "Tail NDCG@10 (computed)",
     }
 
     def _make_slice_figure(keys: List[str], titles: Dict[str, str], fig_key: str, super_title: str):
@@ -966,15 +985,15 @@ def plot_ndcg_vs_fairness(
         super_title=f"{dataset}: NDCG(head/mid/tail) vs overall NDCG@10",
     )
 
-    # # ========================================================================
-    # # 2) USER‑SLICE PLOT ───────────────────── passive / mid / active
-    # # ========================================================================
-    # user_slice_keys   = ["ndcgpassive@10", "ndcgneutral@10", "ndcgactive@10"]
-    # user_slice_titles = {
-    #     "ndcgpassive@10": "Passive Users NDCG@10",
-    #     "ndcgneutral@10":     "Neutral Users NDCG@10",
-    #     "ndcgactive@10":  "Active Users NDCG@10",
-    # }
+    # ========================================================================
+    # 2) USER‑SLICE PLOT ───────────────────── passive / mid / active
+    # ========================================================================
+    user_slice_keys = ["ndcgtailuser@10", "ndcgmiduser@10", "ndcgheaduser@10"]
+    user_slice_titles = {
+        "ndcgtailuser@10": "Tail Users NDCG@10",
+        "ndcgmiduser@10": "Neutral Users NDCG@10",
+        "ndcgheaduser@10": "Head Users NDCG@10",
+    }
 
     # _make_slice_figure(
     #     user_slice_keys,
@@ -983,20 +1002,19 @@ def plot_ndcg_vs_fairness(
     #     super_title=f"{dataset}: NDCG(passive/mid/active) vs overall NDCG@10",
     # )
 
-
     # ========================================================================
     # 3) FAIRNESS SCATTER PLOTS ───────────────────────────────────────────────
     # ========================================================================
     fairness_specs = [
         ("avgpop@10", "Average Popularity @10", "avgpop@10"),
-        ("gini@10",   "Gini Index @10",         "gini@10"),
-        ("covn@10",   "Coverage-5 @10",         "covn@10"),
+        ("gini@10", "Gini Index @10", "gini@10"),
+        ("covn@10", "Coverage‑5 @10", "covn@10"),
     ]
 
     for metric_key, metric_title, dict_key in fairness_specs:
         fig, ax = plt.subplots()
         for lbl, rows in data.items():
-            xs = [r["ndcg"]   for r in rows if "ndcg" in r and dict_key in r]
+            xs = [r["ndcg"] for r in rows if "ndcg" in r and dict_key in r]
             ys = [r[dict_key] for r in rows if "ndcg" in r and dict_key in r]
             if not xs:
                 continue
@@ -1013,7 +1031,7 @@ def plot_ndcg_vs_fairness(
         if thr_03 is not None:
             ax.axvline(thr_03, linestyle="--", linewidth=1, color="grey", label="3 % drop")
         if thr_05 is not None:
-            ax.axvline(thr_05, linestyle=":",  linewidth=1, color="grey", label="5 % drop")
+            ax.axvline(thr_05, linestyle=":", linewidth=1, color="grey", label="5 % drop")
 
         ax.set_xlabel("NDCG@10")
         ax.set_ylabel(metric_title)
@@ -1105,9 +1123,9 @@ def remove_sparse_users_items(n: int, dataset: str, base_dir: str = "./dataset")
         iteration += 1
         before = interactions.shape[0]
 
-        valid_users = interactions["session_id:token"].value_counts()
+        valid_users = interactions["user_id:token"].value_counts()
         valid_users = valid_users[valid_users >= n].index
-        interactions = interactions[interactions["session_id:token"].isin(valid_users)]
+        interactions = interactions[interactions["user_id:token"].isin(valid_users)]
 
         valid_items = interactions["item_id:token"].value_counts()
         valid_items = valid_items[valid_items >= n].index

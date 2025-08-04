@@ -54,7 +54,7 @@ SHORT_NAMES = {
 
 
 def tune(args):
-    if args.fair or args.random or args.ipr or args.pct:
+    if args.fair or args.random or args.ipr or args.pct or args.min_reg:
         tune_baseline(args)
         exit()
 
@@ -253,6 +253,8 @@ def tune_baseline(args):
         model.ipr = True
     elif args.pct:
         model.pct = True
+    elif args.min_reg:
+        model.min_reg = True
 
     if args.fair:
         change1 = [0.4, 0.6, 0.8, 1.0]
@@ -267,6 +269,9 @@ def tune_baseline(args):
     if args.pct:
         change1 = [0.1, 0.3, 0.5, 0.7, 0.9]
         change2 = [0.01, 0.05, 0.1]
+    if args.min_reg:
+        change1 = [0.005, 0.075, 0.01, 0.05, 0.1, 0.5, 1.0]
+        change2 = [0.0]
 
     # --- prepare header printing ---
     header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
@@ -327,6 +332,9 @@ def tune_baseline(args):
         string = "random"
     if args.pct:
         string = "pct"
+    if args.min_reg:
+        string = "min_reg"
+
     # --- Write selected results to CSV (unchanged) ---
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_{string}_{config["dataset"]}-results.csv'
 

@@ -30,16 +30,16 @@ if __name__ == "__main__":
     # retain_last_x_days(dataset="music", days=178)
     # exit()
     # keep_random_users(dataset="yoochoose-clicks", x=25000)
-    # remove_sparse_users_items(5, "yoochoose-clicks")
+    # remove_sparse_users_items(10, "BeerAdvocate")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
     # }
     # run_recbole(model='SASRec', dataset='ml-100k', config_dict=parameter_dict)
     # exit()
-    # create_item_popularity_csv("ml-1m", 0.2)
+    create_item_popularity_csv("ml-1m", 0.2)
     # plot_ndcg_vs_fairness(dataset="Amazon_Gift_Cards", alpha_i=0.0, model="SASRec")
-    # exit()
+    exit()
     # make_labels(dataset="yoochoose-clicks")
     # exit()
     parser = argparse.ArgumentParser()
@@ -47,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true", help="Whether to train model")
     parser.add_argument("--test", action="store_true", help="Whether to test model")
     parser.add_argument("--plot", action="store_true", help="Whether to test model")
+    parser.add_argument("--min_reg", action="store_true", help="Whether to use min-regularizer")
 
     parser.add_argument("--fair", action="store_true", help="Whether to use FAIR")
     parser.add_argument("--random", action="store_true", help="Whether to use random reranker")
@@ -99,7 +100,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=0, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:

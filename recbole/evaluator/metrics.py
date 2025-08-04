@@ -293,10 +293,13 @@ class NDCGGroup(TopkMetric):
 
     def __init__(self, config, label, name):
         super().__init__(config)
-
+        
         path = rf"./dataset/{config['dataset']}/item_popularity_labels.csv"
         self.df = pd.read_csv(path)
-        self.items = set(self.df.loc[self.df["popularity_label"] == label, "item_id:token"].astype(int).tolist())
+        if label == 1:
+            self.items = set(self.df.loc[self.df["popularity_label"] == 1, "item_id:token"].astype(int).tolist())
+        if label != 1:
+            self.items = set(self.df.loc[self.df["popularity_label"] != 1, "item_id:token"].astype(int).tolist())
         self.name = name
         self.skip_zero_den = False
 

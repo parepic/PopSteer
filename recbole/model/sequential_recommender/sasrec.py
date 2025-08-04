@@ -60,10 +60,15 @@ class SASRec(SequentialRecommender):
         self.random = False
         self.ipr = False
         self.pct = False
+        self.min_reg = False
         self.hidden_dropout_prob = config["hidden_dropout_prob"]
         self.attn_dropout_prob = config["attn_dropout_prob"]
         self.hidden_act = config["hidden_act"]
         self.layer_norm_eps = config["layer_norm_eps"]
+        self._item2provider = None
+        self._A = None
+        self._rho = None
+        self._iid2pid = None
 
         self.initializer_range = config["initializer_range"]
         self.loss_type = config["loss_type"]
@@ -191,6 +196,8 @@ class SASRec(SequentialRecommender):
                 scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.a1)
             if self.pct:
                 scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
+            if self.min_reg:
+                scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.a1)
             return scores
 
 
@@ -548,7 +555,6 @@ class SASRec(SequentialRecommender):
             raise ValueError("policy must be 'Equal' or 'AvgEqual'")
 
         quality_sign = niche_np.astype(int)
-
         # ---- Personalised targets ----------------------------------------------
         if personal:
             if user_interest is None:
@@ -642,3 +648,98 @@ class SASRec(SequentialRecommender):
     
 
 
+
+
+    def min_reg_algo(self, scores, dataset, M=250, lambd=0.0001, eta=0.001):
+        """
+        Function to perform min-regularizer re-ranking for fairness.
+        Inputs:
+        - scores: torch.Tensor of shape (B, N), user-item scores
+        - dataset: str, dataset name for loading CSV
+        - M: int, list size (top-K), default=250
+        - lambd: float, fairness trade-off hyperparameter, default=0.1
+        - eta: float, another hyperparameter (learning rate, though not used in this adaptation), default=0.001
+        
+        Outputs:
+        - new_scores: torch.Tensor of shape (B, N), with selected items boosted
+        """        
+        B, N = scores.shape
+        T = B  # Set horizon T to batch size B
+        
+        # Load provider data if not already loaded
+        if self._item2provider is None:
+            csv_path = f"./dataset/{dataset}/item_popularity_labels.csv"
+            df = pd.read_csv(csv_path)
+            # Map popularity_label (-1,0,1) to provider ids (0,1,2)
+            self._item2provider = {row['item_id:token']: row['popularity_label'] + 1 for _, row in df.iterrows()}
+            
+            num_providers = 3  # Fixed to 3 as per user
+            
+            # Compute providerLen
+            providerLen = np.zeros(num_providers)
+            for label in self._item2provider.values():
+                providerLen[int(label)] += 1
+            
+            # Compute rho
+            self._rho = (1 + 1 / num_providers) * providerLen / np.sum(providerLen)
+            
+            # Build A (item-provider matrix)
+            self._A = np.zeros((N, num_providers))
+            self._iid2pid = [-1] * N  # Default -1 if not found
+            for i in range(N):
+                if i in self._item2provider:
+                    pid = self._item2provider[i]
+                    self._iid2pid[i] = pid
+                    self._A[i, int(pid)] = 1
+        
+        # Convert scores to numpy
+        batch_UI = scores.cpu().numpy()
+        
+        # Initialize remaining resources B_t
+        B_t = T * M * self._rho
+        
+        result_x = []  # List to store selected item ids per user
+        
+        for t in range(T):
+            # Compute penalty term
+            min_B = np.min(B_t)
+            gap_term = (-B_t + min_B) / (T * self._rho)
+            penalty = np.matmul(self._A, gap_term)
+            
+            # Compute effective scores
+            x_title = batch_UI[t, :] - lambd * penalty
+            
+            # Mask for depleted providers
+            mask = np.matmul(self._A, (B_t > 0).astype(np.float64))
+            mask = (1.0 - mask) * -10000.0
+            
+            # Sort to get top-M candidates
+            x = np.argsort(x_title + mask, axis=-1)[::-1]
+            x_allocation = x[:M]
+            
+            # Re-sort selected based on original scores (descending)
+            re_allocation = np.argsort(batch_UI[t, x_allocation])[::-1]
+            x_allocation = x_allocation[re_allocation]
+            
+            result_x.append(x_allocation)
+            
+            # Update B_t
+            exposures = np.sum(self._A[x_allocation, :], axis=0)
+            B_t = B_t - exposures
+        
+        # Create new_scores by boosting selected items
+        new_scores = scores.clone()
+        for b in range(B):
+            selected = result_x[b]
+            orig_sel = batch_UI[b, selected]  # Already in descending order
+            
+            # Find a boost value larger than current max
+            orig_max = batch_UI[b].max()
+            boost_base = orig_max + 10.0  # Arbitrary large boost; adjust if scores are very large
+            eps = 1e-6
+            
+            for idx in range(M):
+                item_id = selected[idx]
+                new_scores[b, item_id] = float(boost_base - idx * eps)
+        
+        return new_scores
