@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # retain_last_x_days(dataset="music", days=178)
     # exit()
     # keep_random_users(dataset="yoochoose-clicks", x=25000)
-    # remove_sparse_users_items(10, "BeerAdvocate")
+    # remove_sparse_users_items(5, "ml-1m")
     # exit()
     # parameter_dict = {
     # 'train_neg_samplze_args': None,
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "alpha": [0.1, 1.5],
-                "steer": [1, 0],
+                "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        model.sae_module_i.beta=0.1
+        # model.sae_module_i.beta=0.1
 
         if args.fair:
             model.fair = True
@@ -177,7 +177,7 @@ if __name__ == "__main__":
             trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
-            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+            valid_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [
