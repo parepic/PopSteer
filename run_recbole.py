@@ -121,7 +121,7 @@ if __name__ == "__main__":
                 "load": "./saved/sasrec_ml-1m-32-32.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 32],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-5,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
