@@ -118,10 +118,10 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_ml-1m.pth",
-                "load": "./saved/sasrec_ml-1m-32-32.pth",
+                # "load": "./saved/sasrec_ml-1m-32-32.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 48],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
@@ -177,7 +177,7 @@ if __name__ == "__main__":
             trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
-            valid_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [

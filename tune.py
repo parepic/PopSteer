@@ -264,13 +264,13 @@ def tune_baseline(args):
         change1 = [15, 30, 50, 75, 100]
         change2 = [0]
     if args.ipr:
-        change1 = [0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0]
     if args.pct:
-        change1 = [0.1, 0.3, 0.5, 0.7, 0.9]
+        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.01, 0.05, 0.1]
     if args.min_reg:
-        change1 = [0.005, 0.075, 0.01, 0.05, 0.1, 0.5, 1.0]
+        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.0]
 
     # --- prepare header printing ---

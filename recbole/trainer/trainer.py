@@ -145,7 +145,7 @@ class Trainer(AbstractTrainer):
         self.learning_rate = config["learning_rate"]
         self.epochs = 1000
         self.eval_step = min(config["eval_step"], self.epochs)
-        self.stopping_step = 70
+        self.stopping_step = 50
         self.clip_grad_norm = config["clip_grad_norm"]
         self.valid_metric = config["valid_metric"].lower()
         self.valid_metric_bigger = config["valid_metric_bigger"]
@@ -290,13 +290,14 @@ class Trainer(AbstractTrainer):
                 clip_grad_norm_(self.model.parameters(), **self.clip_grad_norm)
             scaler.step(self.optimizer)
             scaler.update()
+        if hasattr(self, 'scheduler'):
+            self.scheduler.step(metrics=total_loss)
+
         if self.model.__class__.__name__ == 'LightGCN_SAE' or self.model.__class__.__name__ == 'SASRec_SAE':
             self.model.sae_module_i.new_epoch=True
             self.model.sae_module_u.new_epoch=True
             self.model.sae_module_i.epoch_idx = epoch_idx 
             self.model.sae_module_u.epoch_idx = epoch_idx
-
-                
         return total_loss
 
     def _valid_epoch(self, valid_data, show_progress=False):
@@ -466,7 +467,8 @@ class Trainer(AbstractTrainer):
                 sae_file
             )
             self.logger.info(message_output)
-
+        if self.model.__class__.__name__ == 'SASRec_SAE':
+            self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.1, patience=20)
         if saved and self.start_epoch >= self.epochs:
             self._save_checkpoint(-1, verbose=verbose)
 
@@ -722,48 +724,48 @@ class Trainer(AbstractTrainer):
             eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
         """
         
-        checkpoint_file = model_file
-        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(checkpoint["state_dict"])
-        self.model.load_other_parameter(checkpoint.get("other_parameter"))
-        self.device = torch.device(self.device)
-        message_output = "Loading model structure and parameters from {}".format(
-            checkpoint_file
-        )
-        self.logger.info(message_output)
-        # self.model.create_synthetic_dataset()
-        self.model.eval()
-        iter_data = (
-            tqdm(
-                data,
-                total=len(data),
-                ncols=100,
-            )
-            if show_progress
-            else data
-        )
-        times = 200
-        cur = 0
-        for batch_idx, batched_data in enumerate(iter_data):
-            if cur >= times:
-                break
-            cur+=1
-            if eval_data:
-                interaction, history_index, positive_u, positive_i = batched_data
-            else:
-                interaction = batched_data
-            interaction = interaction.to(self.device)
-            self.optimizer.zero_grad()
-            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                self.model.full_sort_predict(interaction, popular=True)
-                self.model.full_sort_predict(interaction, popular=False)
-                self.model.full_sort_predict(interaction, findmean=True)
+        # checkpoint_file = model_file
+        # checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        # self.model.load_state_dict(checkpoint["state_dict"])
+        # self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        # self.device = torch.device(self.device)
+        # message_output = "Loading model structure and parameters from {}".format(
+        #     checkpoint_file
+        # )
+        # self.logger.info(message_output)
+        # # self.model.create_synthetic_dataset()
+        # self.model.eval()
+        # iter_data = (
+        #     tqdm(
+        #         data,
+        #         total=len(data),
+        #         ncols=100,
+        #     )
+        #     if show_progress
+        #     else data
+        # )
+        # times = 200
+        # cur = 0
+        # for batch_idx, batched_data in enumerate(iter_data):
+        #     if cur >= times:
+        #         break
+        #     cur+=1
+        #     if eval_data:
+        #         interaction, history_index, positive_u, positive_i = batched_data
+        #     else:
+        #         interaction = batched_data
+        #     interaction = interaction.to(self.device)
+        #     self.optimizer.zero_grad()
+        #     with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+        #         self.model.full_sort_predict(interaction, popular=True)
+        #         self.model.full_sort_predict(interaction, popular=False)
+        #         self.model.full_sort_predict(interaction, steered=False)
 
 
         n1 = save_mean_SD(self.dataset, popular=True)
         n2 = save_mean_SD(self.dataset, popular=False)
-        n3 = save_mean_SD(self.dataset, popular=None)
-
+        n3 = save_mean_SD(self.dataset, steered=False)
+        # n4 = save_mean_SD(self.dataset, steered=True)
         save_cohens_d(self.dataset, n1=n1, n2=n2)
         if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
             os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")

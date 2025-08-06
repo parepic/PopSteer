@@ -1454,14 +1454,16 @@ def replace_with_mappings(sequences: torch.Tensor, popular: bool, dataset: str) 
     return result
 
 
-def save_batch_activations(bulk_data, neuron_count, dataset, popular):
+def save_batch_activations(bulk_data, neuron_count, dataset, popular=None, steered=None):
     print(popular, " blya")
     if popular == True:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
     elif popular == False:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_unpop.h5"
-    else:
+    elif steered == False:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final.h5"
+    elif steered == True:
+        file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_steered.h5"
     bulk_data = bulk_data.permute(1, 0).detach().cpu().numpy()  # [neuron_count, batch_size]
     real_batch_size = bulk_data.shape[1]  # Might be < batch_size in final step
 
@@ -1484,7 +1486,7 @@ def save_batch_activations(bulk_data, neuron_count, dataset, popular):
             dset[:, current_cols:new_cols] = bulk_data
             
 
-def save_mean_SD(dataset: str, *, popular: bool) -> int:
+def save_mean_SD(dataset: str, *, popular: bool = None, steered: bool = None) -> int:
     """
     Compute row-wise mean and SD for the neuron-activation tensor in an .h5 file,
     save them to CSV, and RETURN the sample count (n) as an int.
@@ -1502,7 +1504,8 @@ def save_mean_SD(dataset: str, *, popular: bool) -> int:
         Number of samples each mean/SD was computed from.
     """
     suffix   = "_pop" if popular else "_unpop"
-    suffix = "" if popular is None else suffix
+    if steered is not None:
+        suffix = "_steered" if steered is None else ""
     h5_path  = Path(f"./dataset/{dataset}/neuron_activations_sasrecsae_final{suffix}.h5")
     csv_path = Path(f"./dataset/{dataset}/user/neuron_stats{suffix}.csv")
     dataset_name = "dataset"   # change if the key inside the HDF5 is different

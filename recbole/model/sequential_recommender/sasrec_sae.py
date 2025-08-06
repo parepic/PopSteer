@@ -77,7 +77,7 @@ class SASRec_SAE(SASRec):
         return scores
 
 
-    def full_sort_predict(self, interaction, popular=None, findmean=False):
+    def full_sort_predict(self, interaction, popular=None, steered=None):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         # if popular == True:
@@ -94,7 +94,7 @@ class SASRec_SAE(SASRec):
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
-            scores[:, 0] =  float("-inf")
+            # scores[:, 0] =  float("-inf")
             # top_recs = torch.argsort(scores, dim=1, descending=True)[:, :10]
             # df = pd.read_csv(rf"./dataset/{self.dataset}/item_popularity_labels.csv")
             # label_map = dict(zip(df['item_id:token'], df['popularity_label']))
@@ -109,10 +109,13 @@ class SASRec_SAE(SASRec):
             # print((new_tensor).shape)
             save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
             return
-        elif findmean:
+        elif steered == False:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
-
+            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, steered=False) 
+            # save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
+        elif steered:
+            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=False) 
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight
@@ -160,6 +163,7 @@ class SAE(nn.Module):
         self.d_in = config['input_dim']
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
+        self.steered_activations=None
         self.d_min = None
         self.activated_features = torch.zeros(config["train_batch_size"], self.hidden_dim)
         self.analyze_neurons = False
@@ -390,6 +394,7 @@ class SAE(nn.Module):
             #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
+            self.steered_activations = pre_acts1
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)   
             z = self.topk_activation(pre_acts, sequences, save_result=False)
