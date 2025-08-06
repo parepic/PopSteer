@@ -52,6 +52,7 @@ class DataStruct(object):
                 (self._data_dict[name], value.clone().detach()), dim=0
             )
 
+
     def __str__(self):
         data_info = "\nContaining:\n"
         for data_key in self._data_dict.keys():
@@ -140,8 +141,8 @@ class Collector(object):
         scores_tensor: torch.Tensor,
         interaction,
         positive_u: torch.Tensor,
-        positive_i: torch.Tensor,
-    ):
+        positive_i: torch.Tensor
+        ):
         """Collect the evaluation resource from batched eval data and batched model output.
         Args:
             scores_tensor (Torch.Tensor): the output tensor of model with the shape of `(N, )`
@@ -149,6 +150,9 @@ class Collector(object):
             positive_u(Torch.Tensor): the row index of positive items for each user.
             positive_i(Torch.Tensor): the positive item id for each user.
         """
+
+
+        
         if self.register.need("rec.items"):
 
             # get topk
@@ -203,7 +207,7 @@ class Collector(object):
                 "data.label", interaction[self.label_field].to(self.device)
             )
 
-    def model_collect(self, model: torch.nn.Module):
+    def model_collect(self, model: torch.nn.Module, time: float = 0):
         """Collect the evaluation resource from model.
         Args:
             model (nn.Module): the trained recommendation model.
@@ -225,6 +229,10 @@ class Collector(object):
             model.val_fvu_u.fill_(0.0)      
             model.val_fvu_i.fill_(0.0)      
 
+        if self.register.need("epochtime"):
+            self.data_struct.update_tensor(
+                    "epochtime", torch.tensor(time)
+            )                    
 
     def eval_collect(self, eval_pred: torch.Tensor, data_label: torch.Tensor):
         """Collect the evaluation resource from total output and label.
@@ -248,7 +256,7 @@ class Collector(object):
             if key != "data.num_items" and key != "data.count_items" and key != "data.num_items" and key != "data.num_users":
                 self.data_struct._data_dict[key] = self.data_struct._data_dict[key].cpu()
         returned_struct = copy.deepcopy(self.data_struct)
-        for key in ["rec.topk", "rec.meanrank", "rec.score", "rec.items", "data.label", "data.user_label", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"]:
+        for key in ["rec.topk", "rec.meanrank", "rec.score", "rec.items", "data.label", "data.user_label", "SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total", "epochtime"]:
             if key in self.data_struct:
                 del self.data_struct[key]
         return returned_struct

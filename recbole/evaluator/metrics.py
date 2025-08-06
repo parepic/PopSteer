@@ -35,6 +35,35 @@ from recbole.evaluator.base_metric import AbstractMetric, TopkMetric, LossMetric
 from recbole.utils import EvaluatorType
 
 
+class SAE_Loss(AbstractMetric):
+    metric_type = EvaluatorType.RANKING
+    smaller = True
+    metric_need = ['SAE_Loss_i']
+
+    def __init__(self, config):
+        pass
+    def calculate_metric(self, dataobject):
+        loss = dataobject.get('SAE_Loss_i')
+        return {"sae_loss": float(loss)}
+
+class SAE_Loss_i(SAE_Loss):
+    metric_need = ['SAE_Loss_i', 'data.num_items']
+
+    def calculate_metric(self, dataobject):
+        loss = dataobject.get('SAE_Loss_i')
+        return {"sae_loss_i": float(loss) / dataobject.get('data.num_items') }
+
+
+class EpochTime(AbstractMetric):
+    metric_type = EvaluatorType.VALUE
+    metric_need = ["epochtime"]         
+    def __init__(self, config):
+        pass
+
+    def calculate_metric(self, dataobject):
+        epochtime = dataobject.get('epochtime')
+        return {"epochtime": float(epochtime)}
+
 
 class Deep_LT_Coverage(AbstractMetric):
     r"""Deep_LT_Coverage computes the coverage of *long‑tail* items.

@@ -6,17 +6,17 @@ import csv
 import torch
 
 PCT_METRICS = {
-    'ndcg@10',                 # NDCG
-    'giniindex@10',            # GINI
-    'averagepopularity@10',    # AVGPOP
-    'itemcoveragen@10',        # COVN
+    'ndcg@10',                
+    'giniindex@10',            
+    'averagepopularity@10',    
+    'itemcoveragen@10',        
+    'epochtime'
 }
 
 
 fieldnames = ["alpha_u", "alpha_n", "alpha_i", "ndcg", "avgpop@10", "gini@10", "cov@10", "covn@10", 'ndcgpassive@10', 
               'ndcgneutral@10', 'ndcgactive@10', 'ndcgtail@10', 'ndcgmid@10', 'ndcghead@10',
-              'ndcgtailuser@10', 'ndcgmiduser@10', 'ndcgheaduser@10']
-
+              'ndcgtailuser@10', 'ndcgmiduser@10', 'ndcgheaduser@10','epochtime']
 
 metric_keys = [
     'ndcg@10',
@@ -32,7 +32,8 @@ metric_keys = [
     'ndcgactive@10',
     'ndcgtailuser@10',
     'ndcgheaduser@10',
-    'ndcgmiduser@10'
+    'ndcgmiduser@10',
+    'epochtime'
     ]
 
 SHORT_NAMES = {
@@ -50,6 +51,7 @@ SHORT_NAMES = {
     'ndcgtailuser@10':'NDCGTAILUSER@10',
     'ndcgmiduser@10':'NDCGMIDUSER@10',
     'ndcgheaduser@10':'NDCGHEADUSER@10',
+    'epochtime': 'epochtime'
     }
 
 
@@ -67,7 +69,7 @@ def tune(args):
             "tail_ratio": 0.2,
             "sae_mode": "test",
             "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser",'epochtime'],
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -86,7 +88,7 @@ def tune(args):
 
     trainer.model.sae_module_u.alpha = 0.0
     test_result = trainer.evaluate(
-        valid_data,
+        test_data,
         model_file=args.path,
         load_best_model=False,
         show_progress=config["show_progress"]
@@ -108,7 +110,7 @@ def tune(args):
                 trainer.model.sae_module_u._steer_ready = False
 
                 test_result = trainer.evaluate(
-                    valid_data,
+                    test_data,
                     model_file=args.path,
                     load_best_model=False,
                     show_progress=config["show_progress"]
@@ -196,8 +198,8 @@ def tune(args):
                 'ndcghead@10': r["ndcghead@10"],
                 'ndcgtailuser@10': r["ndcgtailuser@10"],
                 'ndcgmiduser@10': r["ndcgmiduser@10"],
-                'ndcgheaduser@10': r["ndcgheaduser@10"]
-
+                'ndcgheaduser@10': r["ndcgheaduser@10"],
+                'epochtime': r["epochtime"],
                 })
 
     return rows_raw, formatted_rows
@@ -210,7 +212,7 @@ def tune_baseline(args):
         config_dict = {
             "alpha": [0.5, 0.5],
             "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+                            "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser", "EpochTime"],
             }
     
     config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -222,7 +224,7 @@ def tune_baseline(args):
 
 
     test_result = trainer.evaluate(
-        valid_data,
+        test_data,
         model_file=args.path,
         load_best_model=False,
         show_progress=config["show_progress"]
@@ -257,15 +259,14 @@ def tune_baseline(args):
         model.min_reg = True
 
     if args.fair:
-        change1 = [0.4, 0.6, 0.8, 1.0]
+        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.01, 0.05, 0.1]
-
     if args.random:
         change1 = [15, 30, 50, 75, 100]
-        change2 = [0]
+        change2 = [0.0]
     if args.ipr:
         change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-        change2 = [0]
+        change2 = [0.0]
     if args.pct:
         change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.01, 0.05, 0.1]
@@ -290,7 +291,7 @@ def tune_baseline(args):
             trainer.model.a2 = a_i
 
             test_result = trainer.evaluate(
-                valid_data,
+                test_data,
                 model_file=args.path,
                 load_best_model=False,
                 show_progress=config["show_progress"]
@@ -359,5 +360,6 @@ def tune_baseline(args):
                 'ndcgtailuser@10': r["ndcgtailuser@10"],
                 'ndcgmiduser@10': r["ndcgmiduser@10"],
                 'ndcgheaduser@10': r["ndcgheaduser@10"],
+                'epochtime': 'epochtime'
                 })
     return rows_raw

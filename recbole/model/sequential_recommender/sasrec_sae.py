@@ -115,7 +115,7 @@ class SASRec_SAE(SASRec):
             # save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
         elif steered:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=False) 
+            save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight

@@ -1504,8 +1504,10 @@ def save_mean_SD(dataset: str, *, popular: bool = None, steered: bool = None) ->
         Number of samples each mean/SD was computed from.
     """
     suffix   = "_pop" if popular else "_unpop"
-    if steered is not None:
-        suffix = "_steered" if steered is None else ""
+    if popular == None:
+        suffix = ""
+    if steered == True:
+        suffix = "_steered"
     h5_path  = Path(f"./dataset/{dataset}/neuron_activations_sasrecsae_final{suffix}.h5")
     csv_path = Path(f"./dataset/{dataset}/user/neuron_stats{suffix}.csv")
     dataset_name = "dataset"   # change if the key inside the HDF5 is different
@@ -1694,3 +1696,147 @@ def make_labels(dataset=None,
 # Example usage:
 # make_labels(dataset="yoochoose-clicks")
 # make_labels("yoochoose.inter", "yoochoose.inter.new", sep="\t")
+
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+
+import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+import h5py
+
+def create_atlas_visualizations(dataset: str, hidden_dim: int = 4096, output_dir: str = './atlas_figures', use_umap: bool = True, subsample: int = None):
+    """
+    Function to create activation atlas visualizations for real, synthetic (pop/unpop), and steered activations.
+    
+    Parameters:
+    - dataset: str, name of the dataset (e.g., 'ml-1m') to locate files in ./dataset/{dataset}/
+    - hidden_dim: int, the dimension of the activations (default 4096 based on SAE setup)
+    - output_dir: str, directory to save output figures
+    - use_umap: bool, use UMAP (True) or t-SNE (False) for dimensionality reduction
+    - subsample: int or None, number of samples to subsample for efficiency (e.g., 1000); None for all
+    
+    Outputs:
+    - Saves two figures: 'atlas_all_combined.png' (real, pop, unpop, steered) and 'atlas_real_vs_steered.png'
+    - Prints summary metrics like centroid shifts
+    """
+    # Create output directory if needed
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    # Load the .h5 files (assume each has a dataset 'dataset' with shape [neuron_count, activation_count] = [hidden_dim, num_users])
+    base_path = Path(f"./dataset/{dataset}")
+    
+    real_file = base_path / "neuron_activations_sasrecsae_final.h5"
+    steered_file = base_path / "neuron_activations_sasrecsae_final_steered.h5"
+    pop_file = base_path / "neuron_activations_sasrecsae_final_pop.h5"
+    unpop_file = base_path / "neuron_activations_sasrecsae_final_unpop.h5"
+    
+    def load_h5(file_path):
+        with h5py.File(file_path, 'r') as f:
+            acts = f['dataset'][:]  # Shape: [hidden_dim, num_users]
+        return acts.T  # Transpose to [num_users, hidden_dim] for consistency
+    
+    real_acts = load_h5(real_file)
+    steered_acts = load_h5(steered_file)
+    pop_acts = load_h5(pop_file)
+    unpop_acts = load_h5(unpop_file)
+    
+    # Ensure shapes match
+    assert real_acts.shape[1] == hidden_dim, f"Unexpected hidden dim: {real_acts.shape[1]}"
+    num_users = real_acts.shape[0]
+    assert steered_acts.shape == real_acts.shape, "Steered shape mismatch"
+    assert pop_acts.shape == real_acts.shape, "Pop shape mismatch"
+    assert unpop_acts.shape == real_acts.shape, "Unpop shape mismatch"
+    
+    # Subsample if specified
+    if subsample is not None and subsample < num_users:
+        idx = np.random.choice(num_users, subsample, replace=False)
+        real_acts = real_acts[idx]
+        steered_acts = steered_acts[idx]
+        pop_acts = pop_acts[idx]
+        unpop_acts = unpop_acts[idx]
+        num_users = subsample
+    
+    # Helper function for dimensionality reduction
+    def reduce_activations(all_acts, n_components=2):
+        if use_umap:
+            reducer = umap.UMAP(n_components=n_components, n_neighbors=15, min_dist=0.1, metric='cosine', random_state=42)
+        else:
+            from sklearn.manifold import TSNE
+            reducer = TSNE(n_components=n_components, perplexity=30, random_state=42)
+        return reducer.fit_transform(all_acts)
+    
+    # --- Visualization 1: Combined (Real, Synth Pop, Synth Unpop, Steered) ---
+    # Combine real + pop + unpop + steered
+    all_combined_acts = np.concatenate([real_acts, pop_acts, unpop_acts, steered_acts])
+    projected_combined = reduce_activations(all_combined_acts)
+    
+    # Split projections
+    real_proj_comb = projected_combined[:num_users]
+    pop_proj = projected_combined[num_users:2*num_users]
+    unpop_proj = projected_combined[2*num_users:3*num_users]
+    steered_proj_comb = projected_combined[3*num_users:]
+    
+    # Plot
+    plt.figure(figsize=(10, 8))
+    plt.scatter(real_proj_comb[:, 0], real_proj_comb[:, 1], c='blue', label='Real', alpha=0.6)
+    plt.scatter(pop_proj[:, 0], pop_proj[:, 1], c='red', label='Synth Pop', alpha=0.6)
+    plt.scatter(unpop_proj[:, 0], unpop_proj[:, 1], c='green', label='Synth Unpop', alpha=0.6)
+    plt.scatter(steered_proj_comb[:, 0], steered_proj_comb[:, 1], c='purple', label='Steered', alpha=0.6)
+    plt.title('Activation Atlas: Real, Synthetic (Pop/Unpop), and Steered')
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    plt.legend()
+    plt.savefig(f"{output_dir}/atlas_all_combined-1.png")
+    plt.close()
+    
+    # Metrics: Centroid shifts from real
+    centroid_real = np.mean(real_proj_comb, axis=0)
+    centroid_pop = np.mean(pop_proj, axis=0)
+    centroid_unpop = np.mean(unpop_proj, axis=0)
+    centroid_steered = np.mean(steered_proj_comb, axis=0)
+    shift_pop = np.linalg.norm(centroid_pop - centroid_real)
+    shift_unpop = np.linalg.norm(centroid_unpop - centroid_real)
+    shift_steered = np.linalg.norm(centroid_steered - centroid_real)
+    print(f"Combined Atlas - Shift to Pop: {shift_pop:.4f}, Shift to Unpop: {shift_unpop:.4f}, Shift to Steered: {shift_steered:.4f}")
+    
+    # --- Visualization 2: Real vs. Steered (with arrows) ---
+    # Combine real + steered
+    all_steered_acts = np.concatenate([real_acts, steered_acts])
+    projected_steered = reduce_activations(all_steered_acts)
+    
+    # Split projections
+    real_proj_steered = projected_steered[:num_users]
+    steered_proj = projected_steered[num_users:]
+    
+    # Plot with arrows for shifts
+    plt.figure(figsize=(10, 8))
+    plt.scatter(real_proj_steered[:, 0], real_proj_steered[:, 1], c='blue', label='Real', alpha=0.5)
+    plt.scatter(steered_proj[:, 0], steered_proj[:, 1], c='purple', label='Steered', alpha=0.5)
+    
+    # Add arrows for each paired point
+    for i in range(num_users):
+        plt.arrow(real_proj_steered[i, 0], real_proj_steered[i, 1],
+                  steered_proj[i, 0] - real_proj_steered[i, 0],
+                  steered_proj[i, 1] - real_proj_steered[i, 1],
+                  head_width=0.05, color='gray', alpha=0.3)
+    
+    plt.title('Activation Atlas: Real vs. Steered (with Shift Arrows)')
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    plt.legend()
+    plt.savefig(f"{output_dir}/atlas_real_vs_steered.png")
+    plt.close()
+    
+    # Metrics: Centroid shift and average arrow length
+    centroid_steered_sep = np.mean(steered_proj, axis=0)
+    shift_steered_sep = np.linalg.norm(centroid_steered_sep - np.mean(real_proj_steered, axis=0))
+    avg_arrow_len = np.mean(np.linalg.norm(steered_proj - real_proj_steered, axis=1))
+    print(f"Steered Atlas - Centroid Shift: {shift_steered_sep:.4f}, Avg Arrow Length: {avg_arrow_len:.4f}")
+
+# Example usage (uncomment to run):
+# create_atlas_visualizations(dataset='ml-1m')

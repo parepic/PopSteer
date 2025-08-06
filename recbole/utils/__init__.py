@@ -28,7 +28,8 @@ from recbole.utils.utils import (
     keep_random_users,
     make_labels,
     retain_last_x_days,
-    get_extreme_correlations
+    get_extreme_correlations,
+    create_atlas_visualizations
 )
 from recbole.utils.enum_type import *
 from recbole.utils.argument_list import *
@@ -77,5 +78,6 @@ __all__ = [
     "keep_random_users",
     "make_labels",
     "retain_last_x_days",
-    "get_extreme_correlations"
+    "get_extreme_correlations",
+    "create_atlas_visualizations"
 ]

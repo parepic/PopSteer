@@ -17,7 +17,8 @@ from recbole.utils import (
     remove_sparse_users_items,
     keep_random_users,
     make_labels,
-    retain_last_x_days
+    retain_last_x_days,
+    create_atlas_visualizations
 )
 import csv
 
@@ -27,6 +28,8 @@ from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
+    # create_atlas_visualizations(dataset="ml-1mm", subsample=10000)
+    # exit()
     # retain_last_x_days(dataset="music", days=178)
     # exit()
     # keep_random_users(dataset="yoochoose-clicks", x=25000)
@@ -55,6 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--pct", action="store_true", help="Whether to use random reranker")
 
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
+    parser.add_argument("--int", action="store_true", help="Whether to analyze for interpretation")
 
     parser.add_argument("--tune", action="store_true", help="Whether to train model")
 
@@ -151,13 +155,13 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [0.1, 3],
+                "alpha": [0.1, 0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
                 "tail_ratio": 0.2,
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser", "EpochTime"],
                 }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
@@ -165,7 +169,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        # model.sae_module_i.beta=0.1
+        # model.sae_module_u.beta=4
 
         if args.fair:
             model.fair = True
@@ -174,7 +178,10 @@ if __name__ == "__main__":
         trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
         trainer.eval_collector.data_collect(train_data)
         if args.analyze:
-            trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
+            if not args.int:
+                trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
+            elif args.int:
+                trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
             test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
@@ -193,7 +200,8 @@ if __name__ == "__main__":
             'ndcgmid@10',
             'ndcgtailuser@10',
             'ndcgheaduser@10',
-            'ndcgmiduser@10'
+            'ndcgmiduser@10',
+            "epochtime"
             ]
 
         max_key_len = max(len(k) for k in keys)

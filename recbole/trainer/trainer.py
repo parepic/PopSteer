@@ -655,14 +655,19 @@ class Trainer(AbstractTrainer):
         )
 
         num_sample = 0
+        epoch_time = 0
         for batch_idx, batched_data in enumerate(iter_data):
             num_sample += len(batched_data)
+            start_time = time()  # Start the timer
             interaction, scores, positive_u, positive_i = eval_func(batched_data)
+            end_time = time()  # Start the timer
+            epoch_time += (end_time - start_time)
+            print(f"Epoch inference took {epoch_time:.2f} seconds")
             self.eval_collector.eval_batch_collect(
                 scores, interaction, positive_u, positive_i
             )
         # plot_tensor_sorted_by_popularity(self.model.recommendation_count, dataset=self.dataset)
-        self.eval_collector.model_collect(self.model)
+        self.eval_collector.model_collect(self.model, epoch_time)
         struct = self.eval_collector.get_data_struct()
         result = self.evaluator.evaluate(struct)
         if not self.config["single_spec"]:
@@ -713,7 +718,6 @@ class Trainer(AbstractTrainer):
         return torch.cat(result_list, dim=0)
 
 
-
     @torch.no_grad()
     def analyze_neurons(
         self, data, model_file=None, show_progress=True, eval_data=True, sae=True
@@ -724,55 +728,115 @@ class Trainer(AbstractTrainer):
             eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
         """
         
-        # checkpoint_file = model_file
-        # checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
-        # self.model.load_state_dict(checkpoint["state_dict"])
-        # self.model.load_other_parameter(checkpoint.get("other_parameter"))
-        # self.device = torch.device(self.device)
-        # message_output = "Loading model structure and parameters from {}".format(
-        #     checkpoint_file
-        # )
-        # self.logger.info(message_output)
-        # # self.model.create_synthetic_dataset()
-        # self.model.eval()
-        # iter_data = (
-        #     tqdm(
-        #         data,
-        #         total=len(data),
-        #         ncols=100,
-        #     )
-        #     if show_progress
-        #     else data
-        # )
-        # times = 200
-        # cur = 0
-        # for batch_idx, batched_data in enumerate(iter_data):
-        #     if cur >= times:
-        #         break
-        #     cur+=1
-        #     if eval_data:
-        #         interaction, history_index, positive_u, positive_i = batched_data
-        #     else:
-        #         interaction = batched_data
-        #     interaction = interaction.to(self.device)
-        #     self.optimizer.zero_grad()
-        #     with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-        #         self.model.full_sort_predict(interaction, popular=True)
-        #         self.model.full_sort_predict(interaction, popular=False)
-        #         self.model.full_sort_predict(interaction, steered=False)
-
+        checkpoint_file = model_file
+        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        self.device = torch.device(self.device)
+        message_output = "Loading model structure and parameters from {}".format(
+            checkpoint_file
+        )
+        self.logger.info(message_output)
+        # self.model.create_synthetic_dataset()
+        self.model.eval()
+        iter_data = (
+            tqdm(
+                data,
+                total=len(data),
+                ncols=100,
+            )
+            if show_progress
+            else data
+        )
+        times = 200
+        cur = 0
+        for batch_idx, batched_data in enumerate(iter_data):
+            if cur >= times:
+                break
+            cur+=1
+            if eval_data:
+                interaction, history_index, positive_u, positive_i = batched_data
+            else:
+                interaction = batched_data
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+                self.model.full_sort_predict(interaction, popular=True)
+                self.model.full_sort_predict(interaction, popular=False)
+                self.model.full_sort_predict(interaction, steered=False)
 
         n1 = save_mean_SD(self.dataset, popular=True)
         n2 = save_mean_SD(self.dataset, popular=False)
-        n3 = save_mean_SD(self.dataset, steered=False)
-        # n4 = save_mean_SD(self.dataset, steered=True)
+        n3 = save_mean_SD(self.dataset, popular=None)
         save_cohens_d(self.dataset, n1=n1, n2=n2)
-        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
-            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")
-        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5"):
-            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5")
-        if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5"):
-            os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5")
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5")
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5")
+
+
+
+    @torch.no_grad()
+    def analyze_neurons_int(
+        self, data, model_file=None, show_progress=True, eval_data=True, sae=True
+    ):
+        r"""Evaluate the model based on the eval data.
+
+        Args:
+            eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
+        """
+        
+        checkpoint_file = model_file
+        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        self.device = torch.device(self.device)
+        message_output = "Loading model structure and parameters from {}".format(
+            checkpoint_file
+        )
+        self.logger.info(message_output)
+        # self.model.create_synthetic_dataset()
+        self.model.eval()
+        iter_data = (
+            tqdm(
+                data,
+                total=len(data),
+                ncols=100,
+            )
+            if show_progress
+            else data
+        )
+        times = 200
+        cur = 0
+        for batch_idx, batched_data in enumerate(iter_data):
+            if cur >= times:
+                break
+            cur+=1
+            if eval_data:
+                interaction, history_index, positive_u, positive_i = batched_data
+            else:
+                interaction = batched_data
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+                # self.model.full_sort_predict(interaction, popular=True)
+                # self.model.full_sort_predict(interaction, popular=False)
+                # self.model.full_sort_predict(interaction, steered=False)
+                self.model.full_sort_predict(interaction, steered=True)
+
+        # n1 = save_mean_SD(self.dataset, popular=True)
+        # n2 = save_mean_SD(self.dataset, popular=False)
+        # n3 = save_mean_SD(self.dataset, steered=False)
+        # n4 = save_mean_SD(self.dataset, steered=True)
+        # save_cohens_d(self.dataset, n1=n1, n2=n2)
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_pop.h5")
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final_unpop.h5")
+        # if os.path.exists(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5"):
+        #     os.remove(rf"./dataset/{self.dataset}/neuron_activations_sasrecsae_final.h5")
 
 
 
