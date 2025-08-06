@@ -360,6 +360,6 @@ def tune_baseline(args):
                 'ndcgtailuser@10': r["ndcgtailuser@10"],
                 'ndcgmiduser@10': r["ndcgmiduser@10"],
                 'ndcgheaduser@10': r["ndcgheaduser@10"],
-                'epochtime': 'epochtime'
+                'epochtime': r['epochtime']
                 })
     return rows_raw

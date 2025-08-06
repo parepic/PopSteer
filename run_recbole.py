@@ -125,7 +125,7 @@ if __name__ == "__main__":
                 "load": "./saved/sasrec_beer.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 40],
-                "learning_rate": 1e-3,
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
