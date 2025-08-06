@@ -100,7 +100,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -120,8 +120,8 @@ if __name__ == "__main__":
                 "base_path": "./saved/sasrec_ml-1m.pth",
                 "load": "./saved/sasrec_ml-1m-32-32.pth",
                 "sae_scale_size": [64, 64],
-                "sae_k": [32, 32],
-                "learning_rate": 1e-5,
+                "sae_k": [32, 48],
+                "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [0.1, 1.5],
+                "alpha": [0.1, 3],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
