@@ -632,8 +632,9 @@ class SASRec(SequentialRecommender):
                     mmr    = lambda_ * (1 / (rnk + 1)) - (1 - lambda_) * disp
                     if mmr > best_s:
                         best_s, best_j = mmr, j
-                sel.add(best_j); chosen[pos] = best_j
-                cur_exp[quality_sign[best_j]] += pos_weight[pos]
+                if best_j is not None:
+                    sel.add(best_j); chosen[pos] = best_j
+                    cur_exp[quality_sign[best_j]] += pos_weight[pos]
 
             # -----------  bump scores so the chosen items surface ----------
             bump = scores_np[u].max() + 1
@@ -645,9 +646,6 @@ class SASRec(SequentialRecommender):
             torch.as_tensor(reranked, dtype=scores.dtype, device=scores.device)
             if isinstance(scores, torch.Tensor) else reranked
         )
-    
-
-
 
 
     def min_reg_algo(self, scores, dataset, M=250, lambd=0.0001, eta=0.001):
