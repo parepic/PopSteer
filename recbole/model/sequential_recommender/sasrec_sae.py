@@ -63,9 +63,9 @@ class SASRec_SAE(SASRec):
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         seq_output = self.forward(item_seq, item_seq_len, train_mode=True)
 
-        # sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
+        sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
         sae_loss_u = self.sae_module_u.fvu + self.sae_module_u.auxk_loss / 2
-        return sae_loss_u
+        return sae_loss_u + sae_loss_i
 
     def predict(self, interaction):
         item_seq = interaction[self.ITEM_SEQ]
