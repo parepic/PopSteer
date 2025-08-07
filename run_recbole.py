@@ -122,7 +122,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_beer.pth",
-                # "load": "./saved/sasrec_beer.pth",
+                "load": "./saved/sasrec_beer-32-40.pth",
                 "sae_scale_size": [64, 96],
                 "sae_k": [32, 40],
                 "learning_rate": 1e-3,
