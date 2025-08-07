@@ -622,7 +622,9 @@ class SASRec(SequentialRecommender):
             for pos in range(top_k):
                 if chosen[pos] != -1:
                     continue
-                best_s, best_j = -np.inf, None
+
+                best_s = -np.inf
+                best_j = None
                 for rnk, j in enumerate(order_idx[u]):
                     if j in sel:
                         continue
@@ -632,12 +634,17 @@ class SASRec(SequentialRecommender):
                     mmr    = lambda_ * (1 / (rnk + 1)) - (1 - lambda_) * disp
                     if mmr > best_s:
                         best_s, best_j = mmr, j
-                sel.add(best_j); chosen[pos] = best_j
-                cur_exp[quality_sign[best_j]] += pos_weight[pos]
 
+                if best_j is None:            # <-- no candidates left
+                    break                     #    leave the remaining slots -1
+                sel.add(best_j)
+                chosen[pos] = best_j
+                cur_exp[quality_sign[best_j]] += pos_weight[pos]
             # -----------  bump scores so the chosen items surface ----------
             bump = scores_np[u].max() + 1
-            for r, j in enumerate(chosen[::-1]):      # reverse so pos-0 gets biggest bump
+            for r, j in enumerate(chosen[::-1]):
+                if j == -1:          # <-- nothing was chosen for this rank
+                    continue
                 reranked[u, j] = bump + r
 
         # return the same type the caller provided

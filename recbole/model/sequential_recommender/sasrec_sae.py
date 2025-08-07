@@ -333,6 +333,7 @@ class SAE(nn.Module):
         # ── 3. Load per‑neuron statistics  ───────────────────────────────
         stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpop.csv")
         stats_pop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_pop.csv")
+        stats = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats.csv")
 
         abs_cohens = torch.tensor(
             [abs(c) for _, c, _ in top_neurons], device=self.device, dtype=self.dtype
@@ -364,13 +365,14 @@ class SAE(nn.Module):
         steer = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
 
         for i, (neuron_idx, _, group) in enumerate(top_neurons):
+            tot_sd = stats.iloc[neuron_idx]["sd"]
             w = weights[i]
             if group == "unpop":
                 unpop_sd = stats_unpop.iloc[neuron_idx]["sd"]
-                steer[neuron_idx] += w * unpop_sd
+                steer[neuron_idx] += w * tot_sd
             else:  # group == "pop"
                 pop_sd = stats_pop.iloc[neuron_idx]["sd"]
-                steer[neuron_idx] -= w * pop_sd
+                steer[neuron_idx] -= w * tot_sd
 
         # Save and mark ready
         self.steer_vec = steer.to(self.device)
