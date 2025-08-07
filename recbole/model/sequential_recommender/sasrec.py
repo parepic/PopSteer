@@ -507,7 +507,7 @@ class SASRec(SequentialRecommender):
         self,
         scores: Array,
         *,
-        list_size: Optional[int] = 250,
+        list_size: Optional[int] = 1000,
         top_k: int = 10,
         policy: Literal["Equal", "AvgEqual"] = "Equal",
         p: float = 0.5,
