@@ -134,7 +134,7 @@ if __name__ == "__main__":
                 "base_path": "./saved/sasrec_beer.pth",
                 "load": "./saved/sasrec_beer-32-48.pth",
                 "sae_scale_size": [64, 64],
-                "sae_k": [32, 48],
+                "sae_k": [32, 44],
                 "learning_rate": 1e-4,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
