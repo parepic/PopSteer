@@ -124,7 +124,7 @@ if __name__ == "__main__":
                 "base_path": "./saved/sasrec_beer.pth",
                 # "load": "./saved/sasrec_beer.pth",
                 "sae_scale_size": [64, 96],
-                "sae_k": [32, 48],
+                "sae_k": [32, 40],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
@@ -184,7 +184,7 @@ if __name__ == "__main__":
                 trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
-            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+            valid_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [
