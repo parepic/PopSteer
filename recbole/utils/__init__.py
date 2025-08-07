@@ -29,7 +29,10 @@ from recbole.utils.utils import (
     make_labels,
     retain_last_x_days,
     get_extreme_correlations,
-    create_atlas_visualizations
+    create_atlas_visualizations,
+    save_batch_to_h5,
+    analyze_activation_popularity,
+    top_neurons_by_effect_size
 )
 from recbole.utils.enum_type import *
 from recbole.utils.argument_list import *
@@ -79,5 +82,8 @@ __all__ = [
     "make_labels",
     "retain_last_x_days",
     "get_extreme_correlations",
-    "create_atlas_visualizations"
+    "create_atlas_visualizations",
+    "save_batch_to_h5",
+    "analyze_activation_popularity",
+    "top_neurons_by_effect_size"
 ]

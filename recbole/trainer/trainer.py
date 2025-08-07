@@ -30,6 +30,7 @@ import torch.optim as optim
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from tqdm import tqdm
 import torch.cuda.amp as amp
+import pandas as pd
 
 from recbole.data.interaction import Interaction
 from recbole.data.dataloader import FullSortEvalDataLoader
@@ -728,42 +729,42 @@ class Trainer(AbstractTrainer):
             eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
         """
         
-        checkpoint_file = model_file
-        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(checkpoint["state_dict"])
-        self.model.load_other_parameter(checkpoint.get("other_parameter"))
-        self.device = torch.device(self.device)
-        message_output = "Loading model structure and parameters from {}".format(
-            checkpoint_file
-        )
-        self.logger.info(message_output)
-        # self.model.create_synthetic_dataset()
-        self.model.eval()
-        iter_data = (
-            tqdm(
-                data,
-                total=len(data),
-                ncols=100,
-            )
-            if show_progress
-            else data
-        )
-        times = 200
-        cur = 0
-        for batch_idx, batched_data in enumerate(iter_data):
-            if cur >= times:
-                break
-            cur+=1
-            if eval_data:
-                interaction, history_index, positive_u, positive_i = batched_data
-            else:
-                interaction = batched_data
-            interaction = interaction.to(self.device)
-            self.optimizer.zero_grad()
-            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                self.model.full_sort_predict(interaction, popular=True)
-                self.model.full_sort_predict(interaction, popular=False)
-                self.model.full_sort_predict(interaction, steered=False)
+        # checkpoint_file = model_file
+        # checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        # self.model.load_state_dict(checkpoint["state_dict"])
+        # self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        # self.device = torch.device(self.device)
+        # message_output = "Loading model structure and parameters from {}".format(
+        #     checkpoint_file
+        # )
+        # self.logger.info(message_output)
+        # # self.model.create_synthetic_dataset()
+        # self.model.eval()
+        # iter_data = (
+        #     tqdm(
+        #         data,
+        #         total=len(data),
+        #         ncols=100,
+        #     )
+        #     if show_progress
+        #     else data
+        # )
+        # times = 200
+        # cur = 0
+        # for batch_idx, batched_data in enumerate(iter_data):
+        #     if cur >= times:
+        #         break
+        #     cur+=1
+        #     if eval_data:
+        #         interaction, history_index, positive_u, positive_i = batched_data
+        #     else:
+        #         interaction = batched_data
+        #     interaction = interaction.to(self.device)
+        #     self.optimizer.zero_grad()
+        #     with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+        #         self.model.full_sort_predict(interaction, popular=True)
+        #         self.model.full_sort_predict(interaction, popular=False)
+        #         self.model.full_sort_predict(interaction, steered=False)
 
         n1 = save_mean_SD(self.dataset, popular=True)
         n2 = save_mean_SD(self.dataset, popular=False)
@@ -808,7 +809,7 @@ class Trainer(AbstractTrainer):
             if show_progress
             else data
         )
-        times = 200
+        times = 5000
         cur = 0
         for batch_idx, batched_data in enumerate(iter_data):
             if cur >= times:
@@ -824,7 +825,23 @@ class Trainer(AbstractTrainer):
                 # self.model.full_sort_predict(interaction, popular=True)
                 # self.model.full_sort_predict(interaction, popular=False)
                 # self.model.full_sort_predict(interaction, steered=False)
-                self.model.full_sort_predict(interaction, steered=True)
+                self.model.full_sort_predict(interaction)
+        counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
+
+        # Build a DataFrame with explicit neuron IDs
+        df = pd.DataFrame(
+            {
+                "neuron_id": range(len(counts)),
+                "activation_count": counts
+            }
+        )
+        
+        # Create the directory if it doesn’t exist
+        out_path = rf"./dataset/{self.dataset}/activation_counts.csv"
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+
+        # Write the CSV
+        df.to_csv(out_path, index=False)
 
         # n1 = save_mean_SD(self.dataset, popular=True)
         # n2 = save_mean_SD(self.dataset, popular=False)

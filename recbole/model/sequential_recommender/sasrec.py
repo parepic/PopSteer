@@ -507,7 +507,7 @@ class SASRec(SequentialRecommender):
         self,
         scores: Array,
         *,
-        list_size: Optional[int] = 1000,
+        list_size: Optional[int] = 250,
         top_k: int = 10,
         policy: Literal["Equal", "AvgEqual"] = "Equal",
         p: float = 0.5,
@@ -648,8 +648,6 @@ class SASRec(SequentialRecommender):
     
 
 
-
-
     def min_reg_algo(self, scores, dataset, M=250, lambd=0.0001, eta=0.001):
         """
         Function to perform min-regularizer re-ranking for fairness.
@@ -672,7 +670,6 @@ class SASRec(SequentialRecommender):
             df = pd.read_csv(csv_path)
             # Map popularity_label (-1,0,1) to provider ids (0,1,2)
             self._item2provider = {row['item_id:token']: row['popularity_label'] + 1 for _, row in df.iterrows()}
-            
             num_providers = 3  # Fixed to 3 as per user
             
             # Compute providerLen

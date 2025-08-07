@@ -19,6 +19,7 @@ import os
 import random
 import pandas as pd
 import h5py
+from typing import Union, Tuple, Optional
 
 import numpy as np
 import torch
@@ -1840,3 +1841,303 @@ def create_atlas_visualizations(dataset: str, hidden_dim: int = 4096, output_dir
 
 # Example usage (uncomment to run):
 # create_atlas_visualizations(dataset='ml-1m')
+from matplotlib.gridspec import GridSpec
+from scipy.stats import gaussian_kde
+
+
+# def save_batch_to_h5(
+#     tensor_A: Union[np.ndarray, "torch.Tensor"],
+#     tensor_C: Union[np.ndarray, "torch.Tensor"],
+#     dataset: str,
+#     filename: str = "activations.h5",
+# ) -> Path:
+#     """
+#     Append a batch to an on-disk mapping.
+
+#     Parameters
+#     ----------
+#     tensor_A : (B, Z) array‐like
+#         Sequence features for the batch.
+#     tensor_C : (B,) array-like
+#         Scalar values for each sequence in the batch.
+#     dataset : str
+#         Name of the higher-level dataset; determines sub-directory.
+#     filename : str, optional
+#         HDF5 file name (default "newfile.h5").
+
+#     Returns
+#     -------
+#     Path
+#         Path to the updated HDF5 file.
+#     """
+#     # Convert to NumPy (handles torch, jax, etc.)
+#     A = np.asarray(tensor_A, dtype=np.float32)
+#     C = np.asarray(tensor_C, dtype=np.float32)
+
+#     if A.ndim != 2 or C.ndim != 1 or A.shape[0] != C.shape[0]:
+#         raise ValueError("Expected A:(B,Z) and C:(B,) with matching B.")
+
+#     save_dir = Path(f"./dataset/{dataset}")
+#     save_dir.mkdir(parents=True, exist_ok=True)
+#     file_path = save_dir / filename
+
+#     if not file_path.exists():
+#         # ---------- create ----------
+#         with h5py.File(file_path, "w") as f:
+#             max_A = (None, A.shape[1])      # allow unlimited rows, fixed Z
+#             f.create_dataset(
+#                 "A",
+#                 data=A,
+#                 maxshape=max_A,
+#                 chunks=True,
+#                 compression="gzip",
+#             )
+#             f.create_dataset(
+#                 "C",
+#                 data=C,
+#                 maxshape=(None,),
+#                 chunks=True,
+#                 compression="gzip",
+#             )
+#     else:
+#         # ---------- append ----------
+#         with h5py.File(file_path, "a") as f:
+#             dA, dC = f["A"], f["C"]
+
+#             if dA.shape[1] != A.shape[1]:
+#                 raise ValueError(
+#                     f"Incompatible Z: existing {dA.shape[1]} vs new {A.shape[1]}"
+#                 )
+
+#             old_rows = dA.shape[0]
+#             new_rows = old_rows + A.shape[0]
+
+#             dA.resize((new_rows, dA.shape[1]))
+#             dC.resize((new_rows,))
+
+#             dA[old_rows:new_rows] = A
+#             dC[old_rows:new_rows] = C
+
+#     return file_path
+
+
+
+
+def _lookup_labels(
+    ids: np.ndarray,
+    csv_path: Path
+) -> np.ndarray:
+    """
+    Map user-token IDs to popularity labels using the CSV file.
+
+    Raises
+    ------
+    KeyError
+        If any ID in `ids` is missing from the CSV.
+    """
+    mapping = (
+        pd.read_csv(csv_path, usecols=["user_id:token", "popularity_label"])
+          .set_index("user_id:token")["popularity_label"]
+          .to_dict()
+    )
+    try:
+        return np.array([mapping[int(u)] for u in ids], dtype=np.int32)
+    except KeyError as e:
+        missing = set(ids) - mapping.keys()
+        raise KeyError(f"IDs not found in {csv_path.name}: {sorted(missing)[:10]} ...") from e
+
+
+def save_batch_to_h5(
+    tensor_A: Union[np.ndarray, "torch.Tensor"],   # user-token IDs, shape (B,)
+    tensor_C: Union[np.ndarray, "torch.Tensor"],   # scalar values, shape (B,)
+    dataset: str,
+    filename: str = "activations.h5",
+) -> Path:
+    """
+    Append a batch of user data to an HDF5 file, adding popularity labels.
+
+    Parameters
+    ----------
+    tensor_A : (B,) array-like
+        User-token IDs for the batch.
+    tensor_C : (B,) array-like
+        Scalar values for each user in the batch.
+    dataset : str
+        Higher-level dataset name; defines the sub-directory.
+    filename : str, optional
+        Name of the HDF5 file to create/extend (default "activations.h5").
+
+    Returns
+    -------
+    Path
+        Path to the updated HDF5 file.
+    """
+    # --- convert inputs to NumPy ---
+    ids = np.asarray(tensor_A, dtype=np.int32).reshape(-1)
+    C   = np.asarray(tensor_C, dtype=np.float32).reshape(-1)
+
+    if ids.ndim != 1 or C.ndim != 1 or ids.shape[0] != C.shape[0]:
+        raise ValueError("Expected ids:(B,) and C:(B,) with identical B.")
+
+    save_dir  = Path(f"./dataset/{dataset}")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    file_path = save_dir / filename
+
+    # --- obtain popularity labels ---
+    label_csv = save_dir / "user_popularity_labels.csv"
+    labels    = _lookup_labels(ids, label_csv)   # shape (B,)
+
+    # --- create or append in HDF5 ---
+    if not file_path.exists():
+        # ---------- create ----------
+        with h5py.File(file_path, "w") as f:
+            maxshape = (None,)          # unlimited rows
+            f.create_dataset("ids",    data=ids,    maxshape=maxshape, chunks=True, compression="gzip")
+            f.create_dataset("C",      data=C,      maxshape=maxshape, chunks=True, compression="gzip")
+            f.create_dataset("labels", data=labels, maxshape=maxshape, chunks=True, compression="gzip")
+    else:
+        # ---------- append ----------
+        with h5py.File(file_path, "a") as f:
+            d_ids, d_C, d_lbl = f["ids"], f["C"], f["labels"]
+
+            old_rows = d_ids.shape[0]
+            new_rows = old_rows + ids.shape[0]
+
+            for dset in (d_ids, d_C, d_lbl):
+                dset.resize((new_rows,))
+
+            d_ids[old_rows:new_rows] = ids
+            d_C[old_rows:new_rows]   = C
+            d_lbl[old_rows:new_rows] = labels
+
+    return file_path
+
+
+def analyze_activation_popularity(
+    dataset: str,
+    h5_filename: Union[str, Path] = "activations.h5",
+    *,
+    act_dataset_name: str = "C",
+    label_dataset_name: str = "labels",
+    binsize: float = 0.1,
+    show: bool = True,
+) -> Tuple[pd.DataFrame, plt.Figure]:
+    """
+    For each activation bin (width = `binsize`) show how many sequences have
+    popularity-label −1, 0 and 1.
+
+    Returns
+    -------
+    counts_df : pd.DataFrame
+        Columns = ['bin_left', 'bin_right', '-1', '0', '1', 'total'].
+    fig : matplotlib.figure.Figure
+        Stacked-bar figure (red = −1, grey = 0, green = 1).
+    """
+    # ── load data ──────────────────────────────────────────────────────────────
+    root = Path("./dataset") / dataset
+    h5_path = root / h5_filename
+
+    with h5py.File(h5_path, "r") as f:
+        activ  = f[act_dataset_name][()].astype(float)   # (B,)
+        labels = f[label_dataset_name][()].astype(int)   # (B,)
+
+    if activ.ndim != 1 or labels.ndim != 1 or activ.shape[0] != labels.shape[0]:
+        raise ValueError("`C` and `labels` must both be 1-D and aligned row-wise.")
+
+
+
+    # ── bin activations ────────────────────────────────────────────────────────
+    xmin, xmax = activ.min(), activ.max()
+    xedges = np.arange(
+        np.floor(xmin / binsize) * binsize,
+        np.ceil(xmax  / binsize) * binsize + binsize,
+        binsize,
+    )
+    bin_ids = np.digitize(activ, xedges) - 1  # 0-based bin index
+    n_bins  = len(xedges) - 1
+    lbl_vals = (-1, 0, 1)                     # expected label set
+
+    # count[label, bin] → ndarray 3×n_bins
+    counts = np.zeros((3, n_bins), dtype=int)
+    for b, lbl in zip(bin_ids, labels):
+        try:
+            li = lbl_vals.index(lbl)
+        except ValueError:
+            continue                          # skip unexpected labels
+        counts[li, b] += 1
+
+    # ── DataFrame output ───────────────────────────────────────────────────────
+    counts_df = pd.DataFrame({
+        "bin_left" : xedges[:-1],
+        "bin_right": xedges[1:],
+        "-1"       : counts[0],
+        "0"        : counts[1],
+        "1"        : counts[2],
+    })
+    counts_df["total"] = counts_df[["-1", "0", "1"]].sum(axis=1)
+
+    # ── stacked-bar figure ────────────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(10, 4))
+    lefts  = counts_df["bin_left"]
+    width  = binsize * 0.9                 # gap between bars
+
+    bottoms = np.zeros(n_bins)
+    colors  = {-1: "#d73027", 0: "#aaaaaa", 1: "#1a9850"}
+
+    for lbl in lbl_vals:
+        ax.bar(
+            lefts,
+            counts_df[str(lbl)],
+            width,
+            bottom=bottoms,
+            label=f"label {lbl}",
+            color=colors[lbl],
+        )
+        bottoms += counts_df[str(lbl)]
+
+    ax.set_xlabel("Activation (binned)")
+    ax.set_ylabel("Count")
+    ax.set_title(f"Activation vs. Popularity Label  ({dataset})")
+    ax.legend(title="popularity label")
+    ax.set_xlim(xedges[0], xedges[-1])
+    ax.grid(axis="y", alpha=0.2)
+    fig.tight_layout()
+
+    if show:
+        plt.show()
+
+    return counts_df, fig
+
+def top_neurons_by_effect_size(dataset: str, n: int) -> List[int]:
+    """
+    Return the IDs of the `n` most-active neurons, ordered by descending
+    |Cohen’s d|.
+
+    Files:
+      └─ ./dataset/<dataset>/activation_counts.csv   (neuron_id, activation_count, …)
+      └─ ./dataset/<dataset>/user/cohens_d.csv       (col-0 = neuron_id, col-1 = cohens_d)
+    """
+    root = Path("./dataset") / dataset
+
+    # 1 ── pick the n neurons with highest activation_count
+    act_df = pd.read_csv(root / "activation_counts.csv")
+    top_ids = (
+        act_df.nlargest(n, "activation_count")   # fastest “top-N” in Pandas
+              ["neuron_id"]
+              .astype(int)
+    )
+
+    # 2 ── absolute Cohen’s d, indexed by neuron_id
+    d_abs = (
+        pd.read_csv(root / "user" / "cohens_d.csv", index_col=0)  # first col = index
+          ["cohens_d"]                                            # grab that column
+          .abs()                                                  # |d|
+    )
+
+    # 3 ── re-order the chosen IDs by |d| and return just the IDs
+    return (
+        d_abs.loc[top_ids]            # align on neuron_id labels, not row numbers
+             .sort_values(ascending=False)
+             .index
+             .tolist()
+    )

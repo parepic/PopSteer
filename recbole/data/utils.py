@@ -918,8 +918,8 @@ def create_user_label_csv(user_ids,
     df["interaction_count"] = df["user_id:token"].map(inter_count_map).astype("int32")
 
     n_users_act = len(inter_counts)
-    top_act = math.ceil(0.1 * n_users_act)
-    bot_act = math.floor(0.1 * n_users_act)
+    top_act = math.ceil(0.2 * n_users_act)
+    bot_act = math.floor(0.2 * n_users_act)
 
     sorted_users_act = inter_counts.sort_values()              # ascending
     bottom_users_act = set(sorted_users_act.index[:bot_act])

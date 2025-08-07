@@ -13,7 +13,7 @@ Reference:_
 import torch
 from torch import nn
 from recbole.model.sequential_recommender.sasrec import SASRec
-from recbole.utils import replace_with_mappings, save_batch_activations, compute_weighted_neuron_stats_by_row_item, make_items_popular, make_items_unpopular
+from recbole.utils import replace_with_mappings, save_batch_activations, compute_weighted_neuron_stats_by_row_item, make_items_popular, make_items_unpopular, save_batch_to_h5
 
 class SASRec_SAE(SASRec):
     def __init__(self, config, dataset):
@@ -40,7 +40,7 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
+        reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
         # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
@@ -77,8 +77,10 @@ class SASRec_SAE(SASRec):
         return scores
 
 
+
     def full_sort_predict(self, interaction, popular=None, steered=None):
         item_seq = interaction[self.ITEM_SEQ]
+        users = interaction[self.USER_ID]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         # if popular == True:
         #     item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
@@ -118,6 +120,8 @@ class SASRec_SAE(SASRec):
             save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            # acts = self.sae_module_u.last_activations[:, 871]
+            # save_batch_to_h5(users, acts, dataset=self.dataset)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
             # if self.fair:
@@ -398,7 +402,6 @@ class SAE(nn.Module):
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)   
             z = self.topk_activation(pre_acts, sequences, save_result=False)
-
             x_reconstructed = z @ self.W_dec + self.b_dec
             e = x_reconstructed - x
             total_variance = (x - x.mean(0)).pow(2).sum()

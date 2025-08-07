@@ -18,16 +18,26 @@ from recbole.utils import (
     keep_random_users,
     make_labels,
     retain_last_x_days,
-    create_atlas_visualizations
+    create_atlas_visualizations,
+    analyze_activation_popularity,
+    top_neurons_by_effect_size
 )
 import csv
-
+import os
 from tune import tune
 
 from recbole.data import create_item_popularity_csv
 
 
 if __name__ == "__main__":
+    # datasett = "ml-1mm"
+    # if os.path.exists(rf"./dataset/{datasett}/activations.h5"):
+    #     os.remove(rf"./dataset/{datasett}/activations.h5")
+
+    # print(top_neurons_by_effect_size(dataset="ml-1mm", n=1000))
+    # exit()
+    # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5")
+    # exit()
     # create_atlas_visualizations(dataset="ml-1mm", subsample=10000)
     # exit()
     # retain_last_x_days(dataset="music", days=178)
@@ -121,10 +131,10 @@ if __name__ == "__main__":
     if args.train == True:
         if args.config_json is None:
             config_dict = {
-                "base_path": "./saved/sasrec_beer.pth",
-                "load": "./saved/sasrec_beer-32-40.pth",
-                "sae_scale_size": [64, 96],
-                "sae_k": [32, 40],
+                "base_path": "./saved/sasrec_ml-1m.pth",
+                # "load": "./saved/sasrec_beer-32-40.pth",
+                "sae_scale_size": [64, 128],
+                "sae_k": [32, 48],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
@@ -155,7 +165,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [0.1, 0],
+                "alpha": [0.1, 1],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "analyze": True,
@@ -169,7 +179,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        # model.sae_module_u.beta=4
+        # model.sae_module_u.beta=1
 
         if args.fair:
             model.fair = True
@@ -184,7 +194,7 @@ if __name__ == "__main__":
                 trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
-            valid_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [
