@@ -132,23 +132,22 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_beer.pth",
-                "load": "./saved/sasrec_beer-32-44.pth",
+                # "load": "./saved/sasrec_beer-32-44.pth",
                 "sae_scale_size": [64, 64],
                 "sae_k": [32, 44],
-                "learning_rate": 1e-4,
+                "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                              "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
-                "train_neg_sample_args": None,
+                # "train_neg_sample_args": None,
                 "hidden_size": 64,
                 "input_dim": 64
                 }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
             config_dict["valid_metric"] = "SAE_LOSS_u"
-
         run(
             args.model,
             args.dataset,

@@ -663,7 +663,6 @@ class Trainer(AbstractTrainer):
             interaction, scores, positive_u, positive_i = eval_func(batched_data)
             end_time = time()  # Start the timer
             epoch_time += (end_time - start_time)
-            print(f"Epoch inference took {epoch_time:.2f} seconds")
             self.eval_collector.eval_batch_collect(
                 scores, interaction, positive_u, positive_i
             )
@@ -675,6 +674,7 @@ class Trainer(AbstractTrainer):
             result = self._map_reduce(result, num_sample)
         self.wandblogger.log_eval_metrics(result, head="eval")
         return result
+
 
     def _map_reduce(self, result, num_sample):
         gather_result = {}
