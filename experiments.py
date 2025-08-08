@@ -60,31 +60,31 @@ def ablate_neurons(args):
     rows_raw = []
     trainer.model.restore_item_e = None
 
-    # # --- Ablate unpopular neurons first
-    # for i in range(len(unpop_neurons)):
-    #     trainer.model.sae_module_u.ablate_list = unpop_neurons[:i]
-    #     test_result = trainer.evaluate(
-    #         test_data,
-    #         model_file=args.path,
-    #         load_best_model=False,
-    #         show_progress=config["show_progress"],
-    #     )
-    #     rows_raw.append(
-    #         {
-    #             "popular": False,
-    #             "n": i,
-    #             "giniindex@10": test_result["giniindex@10"],
-    #             "covn@10": test_result["itemcoveragen@10"],
-    #             "cov@10": test_result["itemcoverage@10"],
-    #             "avgpop@10": test_result["averagepopularity@10"]
-    #         }
-    #     )
-    #     print(rows_raw[-1])  # print only the latest row to reduce clutter
+    # --- Ablate unpopular neurons first
+    for i in range(len(unpop_neurons)):
+        trainer.model.sae_module_u.ablate_list = unpop_neurons[:i]
+        test_result = trainer.evaluate(
+            test_data,
+            model_file=args.path,
+            load_best_model=False,
+            show_progress=config["show_progress"],
+        )
+        rows_raw.append(
+            {
+                "popular": False,
+                "n": i,
+                "giniindex@10": test_result["giniindex@10"],
+                "covn@10": test_result["itemcoveragen@10"],
+                "cov@10": test_result["itemcoverage@10"],
+                "avgpop@10": test_result["averagepopularity@10"]
+            }
+        )
+        # print(rows_raw[-1])  # print only the latest row to reduce clutter
 
     # --- Ablate popular neurons next
-    print(pop_neurons)
+    # print(pop_neurons)
     for i in range(len(pop_neurons)):
-        print(i)
+        # print(i)
         trainer.model.sae_module_u.ablate_list = pop_neurons[:i]
         test_result = trainer.evaluate(
             test_data,
@@ -92,7 +92,7 @@ def ablate_neurons(args):
             load_best_model=False,
             show_progress=config["show_progress"],
         )
-        print(test_result)
+        # print(test_result)
         rows_raw.append(
             {
                 "popular": True,
@@ -103,7 +103,7 @@ def ablate_neurons(args):
                 "avgpop@10": test_result["averagepopularity@10"]
             }
         )
-        print(rows_raw[-1])
+        # print(rows_raw[-1])
 
     # --- Save results
     results_dir = rf"./dataset/{config['dataset']}/results"
