@@ -53,36 +53,38 @@ def ablate_neurons(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
 
-    pop_neurons, unpop_neurons = top_neurons_by_effect_size(dataset=config["dataset"], threshold=1)
+    pop_neurons, unpop_neurons = top_neurons_by_effect_size(dataset=config["dataset"], threshold=2)
     print(len(pop_neurons), " pop neurons length ")
     print(len(unpop_neurons), " unpop neurons length ")
 
     rows_raw = []
     trainer.model.restore_item_e = None
 
-    # --- Ablate unpopular neurons first
-    for i in range(len(unpop_neurons)):
-        trainer.model.sae_module_u.ablate_list = unpop_neurons[:i]
-        test_result = trainer.evaluate(
-            test_data,
-            model_file=args.path,
-            load_best_model=False,
-            show_progress=config["show_progress"],
-        )
-        rows_raw.append(
-            {
-                "popular": False,
-                "n": i,
-                "giniindex@10": test_result["giniindex@10"],
-                "covn@10": test_result["itemcoveragen@10"],
-                "cov@10": test_result["itemcoverage@10"],
-                "avgpop@10": test_result["averagepopularity@10"]
-            }
-        )
-        print(rows_raw[-1])  # print only the latest row to reduce clutter
+    # # --- Ablate unpopular neurons first
+    # for i in range(len(unpop_neurons)):
+    #     trainer.model.sae_module_u.ablate_list = unpop_neurons[:i]
+    #     test_result = trainer.evaluate(
+    #         test_data,
+    #         model_file=args.path,
+    #         load_best_model=False,
+    #         show_progress=config["show_progress"],
+    #     )
+    #     rows_raw.append(
+    #         {
+    #             "popular": False,
+    #             "n": i,
+    #             "giniindex@10": test_result["giniindex@10"],
+    #             "covn@10": test_result["itemcoveragen@10"],
+    #             "cov@10": test_result["itemcoverage@10"],
+    #             "avgpop@10": test_result["averagepopularity@10"]
+    #         }
+    #     )
+    #     print(rows_raw[-1])  # print only the latest row to reduce clutter
 
     # --- Ablate popular neurons next
+    print(pop_neurons)
     for i in range(len(pop_neurons)):
+        print(i)
         trainer.model.sae_module_u.ablate_list = pop_neurons[:i]
         test_result = trainer.evaluate(
             test_data,
