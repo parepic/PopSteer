@@ -49,7 +49,8 @@ from recbole.utils import (
     WandbLogger,
     plot_tensor_sorted_by_popularity,
     save_cohens_d,
-    save_mean_SD
+    save_mean_SD,
+    top_neurons_by_effect_size
 )
 from torch.nn.parallel import DistributedDataParallel
 

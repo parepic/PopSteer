@@ -78,8 +78,8 @@ def tune(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
     # trainer.model.N = 140
-    change1 = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
-    change2 = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    change1 = [0.0, 0.5, 1.0, 1.5, 2.0]
+    change2 = [0.0, 0.5, 1.0, 1.5, 2.0]
     change3 = [0, 0.5, 1, 1.5, 2.0]
     # change2 = [0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.2]
 
@@ -223,18 +223,18 @@ def tune_baseline(args):
     trainer.eval_collector.data_collect(train_data)
 
 
-    test_result = trainer.evaluate(
-        test_data,
-        model_file=args.path,
-        load_best_model=False,
-        show_progress=config["show_progress"]
-    )
+    # test_result = trainer.evaluate(
+    #     test_data,
+    #     model_file=args.path,
+    #     load_best_model=False,
+    #     show_progress=config["show_progress"]
+    # )
     trainer.model.restore_item_e = None
     rows_raw   = []
     baseline = {
         'alpha_u': 0,
         'alpha_i': 0,
-        **{k: test_result[k] for k in metric_keys}}
+        **{k: 0.0 for k in metric_keys}}
     rows_raw.append(baseline)
     formatted_cells = [
         f"{0.0}",
@@ -248,7 +248,7 @@ def tune_baseline(args):
 
     
     if args.fair:
-        model.fair = True
+        model.fair = False
     elif args.random:
         model.random = True
     elif args.ipr:
@@ -258,9 +258,12 @@ def tune_baseline(args):
     elif args.min_reg:
         model.min_reg = True
 
+    change1 = [0.0, 0.0]
+    change2 = [0.0]
+
     if args.fair:
-        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-        change2 = [0.01, 0.05, 0.1]
+        change1 = [0.0, 0.0]
+        change2 = [0.0]
     if args.random:
         change1 = [15, 30, 50, 75, 100]
         change2 = [0.0]
@@ -325,10 +328,11 @@ def tune_baseline(args):
                 else:
                     formatted_cells.append(f"{val:.4f}")
             print(" | ".join(formatted_cells))
+    string = "org"
     if args.ipr:
-        string = "ipr"
+        string = "org"
     if args.fair:
-        string = "fair"
+        string = "org"
     if args.random:
         string = "random"
     if args.pct:

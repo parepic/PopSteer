@@ -158,6 +158,7 @@ class SAE(nn.Module):
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
         self.dampen=False
+        self.ablate_list = None
         self.neuron_count = None
         self.unpopular_only = None
         self.corr_file = None
@@ -238,7 +239,8 @@ class SAE(nn.Module):
         and sets their activations in x to -10 before computing top-k.
         Returns a sparse tensor with only the top-k activations.
         """
-
+        if self.ablate_list is not None:
+            x[:, self.ablate_list] = 0
         topk_values, topk_indices = torch.topk(x, self.k, dim=1)
         flat_indices = topk_indices.view(-1)
 
@@ -402,7 +404,8 @@ class SAE(nn.Module):
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
             self.steered_activations = pre_acts1
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
-            pre_acts = nn.functional.relu(pre_acts1)   
+            pre_acts = nn.functional.relu(pre_acts1)
+               
             z = self.topk_activation(pre_acts, sequences, save_result=False)
             x_reconstructed = z @ self.W_dec + self.b_dec
             e = x_reconstructed - x

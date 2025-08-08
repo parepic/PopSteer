@@ -19,7 +19,7 @@ import os
 import random
 import pandas as pd
 import h5py
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, Set
 
 import numpy as np
 import torch
@@ -2108,36 +2108,62 @@ def analyze_activation_popularity(
 
     return counts_df, fig
 
-def top_neurons_by_effect_size(dataset: str, n: int) -> List[int]:
-    """
-    Return the IDs of the `n` most-active neurons, ordered by descending
-    |Cohen’s d|.
 
-    Files:
-      └─ ./dataset/<dataset>/activation_counts.csv   (neuron_id, activation_count, …)
-      └─ ./dataset/<dataset>/user/cohens_d.csv       (col-0 = neuron_id, col-1 = cohens_d)
+
+def top_neurons_by_effect_size(dataset: str, threshold: float) -> Tuple[List[int], List[int]]:
+    """Return two **lists** of neuron IDs selected by activation count and effect size.
+
+    Selection pipeline
+    ------------------
+    1. **Exclude** neurons whose ``activation_count`` equals **zero**.
+    2. **Filter** the remaining neurons to those whose absolute Cohen’s *d* is
+       at least ``threshold``.
+    3. Split the survivors into two groups and **order each list by descending
+       ``|d|``**:
+        • ``positive_ids`` – neurons with *d* > 0.
+        • ``negative_ids`` – neurons with *d* < 0.
+
+    Parameters
+    ----------
+    dataset : str
+        Name of the dataset directory under ``./dataset``.
+    threshold : float
+        Absolute Cohen’s *d* cut-off (``|d| >= threshold``).
+
+    Returns
+    -------
+    Tuple[List[int], List[int]]
+        ``positive_ids, negative_ids``.
     """
+
     root = Path("./dataset") / dataset
 
-    # 1 ── pick the n neurons with highest activation_count
+    # ── 1. Drop neurons with zero activations
     act_df = pd.read_csv(root / "activation_counts.csv")
-    top_ids = (
-        act_df.nlargest(n, "activation_count")   # fastest “top-N” in Pandas
-              ["neuron_id"]
-              .astype(int)
+    active_ids = act_df.loc[act_df["activation_count"] != 0, "neuron_id"].astype(int)
+
+    # ── 2. Load Cohen's d and align with active neurons
+    d_series = pd.read_csv(root / "user" / "cohens_d.csv", index_col=0)["cohens_d"]
+    d_active = d_series.reindex(active_ids).dropna()
+
+    # ── 3. Apply |d| ≥ threshold
+    d_filtered = d_active[d_active.abs() >= threshold]
+
+    # ── 4. Split by sign and sort by |d|
+    positive_ids: List[int] = (
+        d_filtered[d_filtered > 0]
+        .abs()
+        .sort_values(ascending=False)
+        .index.astype(int)
+        .tolist()
     )
 
-    # 2 ── absolute Cohen’s d, indexed by neuron_id
-    d_abs = (
-        pd.read_csv(root / "user" / "cohens_d.csv", index_col=0)  # first col = index
-          ["cohens_d"]                                            # grab that column
-          .abs()                                                  # |d|
+    negative_ids: List[int] = (
+        d_filtered[d_filtered < 0]
+        .abs()
+        .sort_values(ascending=False)
+        .index.astype(int)
+        .tolist()
     )
 
-    # 3 ── re-order the chosen IDs by |d| and return just the IDs
-    return (
-        d_abs.loc[top_ids]            # align on neuron_id labels, not row numbers
-             .sort_values(ascending=False)
-             .index
-             .tolist()
-    )
+    return positive_ids, negative_ids

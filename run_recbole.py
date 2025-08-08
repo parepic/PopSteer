@@ -22,18 +22,64 @@ from recbole.utils import (
     analyze_activation_popularity,
     top_neurons_by_effect_size
 )
+from experiments import ablate_neurons
 import csv
 import os
 from tune import tune
-
+from pathlib import Path
 from recbole.data import create_item_popularity_csv
 
 
+def fix_ndcg_columns(dataset: str) -> None:
+    """
+    Adjust all result CSVs in ./dataset/{dataset}/results-final:
+    • ndcg@10tail   ←  ndcg - ndcg@head
+    • drop column 'ndcg@mid'
+    • save the amended files in a new sibling folder
+      ./dataset/{dataset}/results-final/new  (same filenames)
+
+    Parameters
+    ----------
+    dataset : str
+        The dataset folder name (e.g. "msmarco", "trec23", …).
+    """
+    # Resolve paths
+    base_dir = Path(f"./dataset/{dataset}/results-final").resolve()
+    new_dir  = base_dir / "new"
+    new_dir.mkdir(parents=True, exist_ok=True)
+
+    # Process every *.csv in the source directory (non-recursive)
+    for csv_path in base_dir.glob("*.csv"):
+        df = pd.read_csv(csv_path)
+
+        # Re-compute ndcg@10tail and drop ndcg@mid if present
+        if {"ndcg", "ndcghead@10"}.issubset(df.columns):
+            df["ndcgtail@10"] = df["ndcg"] - df["ndcghead@10"]
+        else:
+            raise KeyError(
+                f"Required columns missing in {csv_path.name}: "
+                "expected 'ndcg' and 'ndcg@head'."
+            )
+
+        if "ndcgmid@10" in df.columns:
+            df = df.drop(columns="ndcgmid@10")
+
+        # Write out with identical filename into the /new folder
+        df.to_csv(new_dir / csv_path.name, index=False)
+
+    print(f"✔ All CSVs processed; output written to: {new_dir}")
+
+
+
 if __name__ == "__main__":
+    # fix_ndcg_columns(dataset="BeerAdvocate")
+    # exit()
     # datasett = "ml-1mm"
     # if os.path.exists(rf"./dataset/{datasett}/activations.h5"):
     #     os.remove(rf"./dataset/{datasett}/activations.h5")
-
+    # a, b = top_neurons_by_effect_size(dataset="ml-1mm", n=500)
+    # print(len(a), " ", len(b))
+    # exit()
     # print(top_neurons_by_effect_size(dataset="ml-1mm", n=1000))
     # exit()
     # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5")
@@ -71,6 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--int", action="store_true", help="Whether to analyze for interpretation")
 
     parser.add_argument("--tune", action="store_true", help="Whether to train model")
+    parser.add_argument("--ablate", action="store_true", help="Whether to ablate neurons")
 
     parser.add_argument('--config_json', type=str, default=None,
                     help="JSON string with config overrides")
@@ -116,6 +163,9 @@ if __name__ == "__main__":
     if args.plot:
         plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
+    if args.ablate:
+        ablate_neurons(args)
+        exit()
     config_dict = dict()
     if args.config_json:
         import json, ast
@@ -132,7 +182,7 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_beer.pth",
-                # "load": "./saved/sasrec_beer-32-44.pth",
+                "load": "./saved/sasrec_beer-32-52.pth",
                 "sae_scale_size": [32, 96],
                 "sae_k": [32, 52],
                 "learning_rate": 1e-3,
