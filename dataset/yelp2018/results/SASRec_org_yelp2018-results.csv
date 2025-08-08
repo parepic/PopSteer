@@ -1,0 +1,2 @@
+ndcg,avgpop@10,gini@10,cov@10,covn@10,ndcgpassive@10,ndcgneutral@10,ndcgactive@10,ndcgtail@10,ndcgmid@10,ndcghead@10,ndcgtailuser@10,ndcgmiduser@10,ndcgheaduser@10,epochtime
+0.0242,173.0568,0.8297,0.7039,0.3316,0.0246,0.0246,0.0204,0.0111,0.0111,0.0131,0.0219,0.0219,0.0447,0.0063
