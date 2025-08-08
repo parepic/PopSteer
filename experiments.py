@@ -75,6 +75,8 @@ def ablate_neurons(args):
                 "n": i,
                 "giniindex@10": test_result["giniindex@10"],
                 "covn@10": test_result["itemcoveragen@10"],
+                "cov@10": test_result["itemcoverage@10"],
+                "avgpop@10": test_result["averagepopularity@10"]
             }
         )
         print(rows_raw[-1])  # print only the latest row to reduce clutter
@@ -88,12 +90,15 @@ def ablate_neurons(args):
             load_best_model=False,
             show_progress=config["show_progress"],
         )
+        print(test_result)
         rows_raw.append(
             {
                 "popular": True,
                 "n": i,
                 "giniindex@10": test_result["giniindex@10"],
-                "covn@10": test_result["intemcoveragen@10"],
+                "covn@10": test_result["itemcoveragen@10"],
+                "cov@10": test_result["itemcoverage@10"],
+                "avgpop@10": test_result["averagepopularity@10"]
             }
         )
         print(rows_raw[-1])
