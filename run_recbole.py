@@ -114,7 +114,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     config_dict = dict()
     if args.config_json:
@@ -132,16 +132,16 @@ if __name__ == "__main__":
         if args.config_json is None:
             config_dict = {
                 "base_path": "./saved/sasrec_beer.pth",
-                # "load": "./saved/sasrec_beer-32-44.pth",
+                "load": "./saved/sasrec_beer-32-44.pth",
                 "sae_scale_size": [64, 64],
-                "sae_k": [32, 44],
+                "sae_k": [32, 48],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                              "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
-                # "train_neg_sample_args": None,
+                "train_neg_sample_args": None,
                 "hidden_size": 64,
                 "input_dim": 64
                 }
