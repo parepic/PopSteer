@@ -32,7 +32,8 @@ from recbole.utils.utils import (
     create_atlas_visualizations,
     save_batch_to_h5,
     analyze_activation_popularity,
-    top_neurons_by_effect_size
+    top_neurons_by_effect_size,
+    plot_ablation_results
 )
 from recbole.utils.enum_type import *
 from recbole.utils.argument_list import *
@@ -85,5 +86,6 @@ __all__ = [
     "create_atlas_visualizations",
     "save_batch_to_h5",
     "analyze_activation_popularity",
-    "top_neurons_by_effect_size"
+    "top_neurons_by_effect_size",
+    "plot_ablation_results"
 ]

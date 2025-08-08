@@ -20,7 +20,8 @@ from recbole.utils import (
     retain_last_x_days,
     create_atlas_visualizations,
     analyze_activation_popularity,
-    top_neurons_by_effect_size
+    top_neurons_by_effect_size,
+    plot_ablation_results
 )
 from experiments import ablate_neurons
 import csv
@@ -161,7 +162,8 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ablation_results(dataset="yelp2018")
+        # plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
         ablate_neurons(args)

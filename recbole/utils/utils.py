@@ -2110,25 +2110,27 @@ def analyze_activation_popularity(
 
 
 
-def top_neurons_by_effect_size(dataset: str, threshold: float) -> Tuple[List[int], List[int]]:
-    """Return two **lists** of neuron IDs selected by activation count and effect size.
+def top_neurons_by_effect_size(dataset: str, n: int, threshold: float = 1.0) -> Tuple[List[int], List[int]]:
+    """Return two **lists** of neuron IDs selected by activation and effect size.
 
     Selection pipeline
     ------------------
-    1. **Exclude** neurons whose ``activation_count`` equals **zero**.
-    2. **Filter** the remaining neurons to those whose absolute Cohen’s *d* is
-       at least ``threshold``.
-    3. Split the survivors into two groups and **order each list by descending
-       ``|d|``**:
-        • ``positive_ids`` – neurons with *d* > 0.
-        • ``negative_ids`` – neurons with *d* < 0.
+    1. **Rank** neurons by their *activation_count* (**descending**) and keep the
+       top ``n`` most active ones.
+    2. **Filter** those *n* neurons to retain only those whose absolute Cohen’s
+       *d* satisfies ``|d| ≥ threshold``.
+    3. Split the survivors into two lists ordered by descending ``|d|``:
+       • ``positive_ids`` – neurons with *d* > 0.
+       • ``negative_ids`` – neurons with *d* < 0.
 
     Parameters
     ----------
     dataset : str
         Name of the dataset directory under ``./dataset``.
-    threshold : float
-        Absolute Cohen’s *d* cut-off (``|d| >= threshold``).
+    n : int
+        Number of most active neurons to consider before the Cohen’s *d* filter.
+    threshold : float, default 1.0
+        Minimum absolute Cohen’s *d* required for a neuron to be selected.
 
     Returns
     -------
@@ -2138,18 +2140,21 @@ def top_neurons_by_effect_size(dataset: str, threshold: float) -> Tuple[List[int
 
     root = Path("./dataset") / dataset
 
-    # ── 1. Drop neurons with zero activations
+    # 1️⃣  Rank by activation and keep top-n
     act_df = pd.read_csv(root / "activation_counts.csv")
-    active_ids = act_df.loc[act_df["activation_count"] != 0, "neuron_id"].astype(int)
+    top_act_ids = (
+        act_df.sort_values("activation_count", ascending=False)
+        .head(n)["neuron_id"]
+        .astype(int)
+    )
 
-    # ── 2. Load Cohen's d and align with active neurons
+    # 2️⃣  Read Cohen's d and intersect with top-n active IDs
     d_series = pd.read_csv(root / "user" / "cohens_d.csv", index_col=0)["cohens_d"]
-    d_active = d_series.reindex(active_ids).dropna()
+    d_top = d_series.reindex(top_act_ids).dropna()
 
-    # ── 3. Apply |d| ≥ threshold
-    d_filtered = d_active[d_active.abs() >= threshold]
+    # 3️⃣  Apply |d| ≥ threshold, then split by sign and sort by |d|
+    d_filtered = d_top[d_top.abs() >= threshold]
 
-    # ── 4. Split by sign and sort by |d|
     positive_ids: List[int] = (
         d_filtered[d_filtered > 0]
         .abs()
@@ -2167,3 +2172,87 @@ def top_neurons_by_effect_size(dataset: str, threshold: float) -> Tuple[List[int
     )
 
     return positive_ids, negative_ids
+
+
+
+def plot_ablation_results(dataset: str, show: bool = True, save_png: bool = False):
+    """Read ``ablation_results.csv`` for *dataset* and generate four scatter plots.
+
+    Each plot shows **NDCG@10** (x‑axis) vs. one fairness metric (y‑axis):
+
+    1. Gini‐Index@10
+    2. ItemCoverageN@10
+    3. ItemCoverage@10
+    4. AveragePopularity@10
+
+    Two point styles are used:
+    • **blue circles** – ablations on *unpopular* neurons (``popular == False``)
+    • **orange triangles** – ablations on *popular* neurons (``popular == True``)
+
+    Parameters
+    ----------
+    dataset : str
+        Dataset name (sub‑folder under ``./dataset``)
+    results_dir : str | None, optional
+        Path to the folder where ``ablation_results.csv`` resides. If *None*,
+        defaults to ``./dataset/<dataset>/results``.
+    show : bool, default True
+        If *True*, call ``plt.show()``.
+    save_png : bool, default False
+        If *True*, also save the figure as ``ablation_plots.png`` in *results_dir*.
+    """
+
+    results_dir = rf"./dataset/{dataset}/results"
+
+    csv_path = os.path.join(results_dir, "ablation_results.csv")
+    if not os.path.isfile(csv_path):
+        raise FileNotFoundError(f"{csv_path} not found – run ablation first.")
+
+    df = pd.read_csv(csv_path)
+
+    # Ensure required columns exist
+    required = [
+        "n",
+        "giniindex@10",
+        "covn@10",
+        "cov@10",
+        "avgpop@10",
+        "popular",
+    ]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise KeyError(f"Missing columns in CSV: {missing}")
+
+    metrics = [
+        ("giniindex@10", "Gini-Index@10 (↓ fairer)"),
+        ("covn@10", "ItemCoverageN@10 (↑ fairer)"),
+        ("cov@10", "ItemCoverage@10 (↑ fairer)"),
+        ("avgpop@10", "AveragePopularity@10 (↓ fairer)"),
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10), sharex=True)
+    axes = axes.flatten()
+
+    for ax, (col, y_label) in zip(axes, metrics):
+        # unpopular (popular == False)
+        sub_u = df[df["popular"] == False]
+        ax.scatter(sub_u["n"], sub_u[col], marker="o", alpha=0.8, label="Unpopular →")
+        # popular (popular == True)
+        sub_p = df[df["popular"] == True]
+        ax.scatter(sub_p["n"], sub_p[col], marker="^", alpha=0.8, label="Popular →")
+
+        ax.set_xlabel("Number of neurons ablated (n)")
+        ax.set_ylabel(y_label)
+        ax.set_title(f"n vs. {y_label.split(' ')[0]}")
+        ax.grid(True, linestyle=":", linewidth=0.7)
+        ax.legend()
+
+    fig.tight_layout()
+
+    if save_png:
+        png_path = os.path.join(results_dir, "ablation_plots.png")
+        fig.savefig(png_path, dpi=300)
+        print(f"Saved figure to {png_path}")
+
+    if show:
+        plt.show()
