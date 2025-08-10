@@ -25,6 +25,7 @@ class SASRec_SAE(SASRec):
         self.sae_module_u = SAE(config, side="user")
         self.a1 = 0.9
         self.a2 = 0.1
+        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
         for param in self.parameters():
             param.requires_grad = False
         for param in self.sae_module_i.parameters():
@@ -40,7 +41,7 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
+        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
         # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
@@ -240,10 +241,13 @@ class SAE(nn.Module):
         If k is not None, reads the first k indices from the previously saved indices file
         and sets their activations in x to -10 before computing top-k.
         Returns a sparse tensor with only the top-k activations.
-        """
+        """ 
+
         if self.ablate_list is not None:
-            x[:, self.ablate_list] = 0
-            # x[:, 3400] = 0
+            sds = torch.from_numpy(self.d[self.ablate_list])
+            x[:, self.ablate_list] -= sds
+        # print("bunu deyireme qaqa ", x.shape)
+        # x[:, 3400] = 0
         if self.ablate_index is not None:
             x[:, self.ablate_index] = 0
         topk_values, topk_indices = torch.topk(x, self.k, dim=1)
