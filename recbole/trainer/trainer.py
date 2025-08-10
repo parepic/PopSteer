@@ -936,7 +936,7 @@ class Trainer(AbstractTrainer):
             {
                 "neuron_id": range(len(counts)),
                 "activation_count": counts,
-                "apr_org": apr_org.detach().cpu().numpy(),
+                "apr_org": aprs.detach().cpu().numpy(),
                 "apr_steered": aprs_steered.detach().cpu().numpy(),
                 "apr_diff": (apr_org - aprs_steered).detach().cpu().numpy()
             }
