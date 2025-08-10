@@ -185,9 +185,9 @@ class SAE(nn.Module):
         self.previous_activate_latents = None
         self.epoch_idx=0
         self.new_epoch = False
-        # self.d_pop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_pop.csv")["sd"].to_numpy()
-        # self.d_unpop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_unpop.csv")["sd"].to_numpy()
-        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
+        self.d_pop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_pop.csv")["sd"].to_numpy()
+        self.d_unpop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_unpop.csv")["sd"].to_numpy()
+        # self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
 
 
         self.item_activations = np.zeros(self.hidden_dim)
@@ -249,13 +249,13 @@ class SAE(nn.Module):
         """ 
 
         if self.ablate_list is not None:
-            # sds_unpop = torch.from_numpy(self.d_unpop[self.ablate_list]).to(self.device)
-            # sds_pop = torch.from_numpy(self.d_pop[self.ablate_list]).to(self.device)
-            sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
+            sds_unpop = torch.from_numpy(self.d_unpop[self.ablate_list]).to(self.device)
+            sds_pop = torch.from_numpy(self.d_pop[self.ablate_list]).to(self.device)
+            # sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
             if self.dampen_now:
-                x[:, self.ablate_list] -= 2*sds
+                x[:, self.ablate_list] -= 2*sds_pop
             elif self.dampen_now == False:
-                x[:, self.ablate_list] -= 2*sds
+                x[:, self.ablate_list] -= 2*sds_unpop
 
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
