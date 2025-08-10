@@ -946,12 +946,9 @@ class Trainer(AbstractTrainer):
                             "cohens_d": cohens
                         }
                     )
-
-                # Create the directory if it doesn’t exist
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                df.to_csv(out_path, index=False)
-
-
+                    # Create the directory if it doesn’t exist
+                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                    df.to_csv(out_path, index=False)
 
         counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
         # Build a DataFrame with explicit neuron IDs
