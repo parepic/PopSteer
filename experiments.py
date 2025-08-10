@@ -18,7 +18,7 @@ def ablate_neurons(args):
         config_dict = {
             "alpha": [0, 0],
             "steer": [0, 0],
-            "steer_dir": [-1, -1],
+            "steer_dir": [0, 0],
             "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
