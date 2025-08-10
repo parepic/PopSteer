@@ -243,6 +243,7 @@ class SAE(nn.Module):
         """
         if self.ablate_list is not None:
             x[:, self.ablate_list] = 0
+            # x[:, 3400] = 0
         if self.ablate_index is not None:
             x[:, self.ablate_index] = 0
         topk_values, topk_indices = torch.topk(x, self.k, dim=1)
