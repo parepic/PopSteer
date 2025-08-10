@@ -23,6 +23,9 @@ from recbole.utils import (
     top_neurons_by_effect_size,
     plot_ablation_results
 )
+
+import matplotlib.pyplot as plt
+
 from experiments import ablate_neurons
 import csv
 import os
@@ -73,6 +76,31 @@ def fix_ndcg_columns(dataset: str) -> None:
 
 
 if __name__ == "__main__":
+    # dataset = "ml-1mm"  # replace with your dataset name
+
+    # # Load CSV
+    # df = pd.read_csv(f"./dataset/{dataset}/neuron_stats_test.csv")
+
+    # # Filter out rows with activation_count < 100
+    # df = df[df['activation_count'] >= 100]
+
+    # # Calculate percentage change
+    # df['percentage_change'] = (df['apr_org'] - df['apr_steered']) / df['apr_org'] * 100
+
+    # # Calculate correlation (Pearson)
+    # correlation = df['cohens_d'].corr(df['percentage_change'])
+    # print(f"Pearson correlation between Cohen's d and Percentage Change: {correlation:.4f}")
+
+    # # Plot with smaller and semi-transparent points
+    # plt.scatter(df['cohens_d'], df['percentage_change'], s=10, alpha=0.6)
+    # plt.xlabel("Cohen's d")
+    # plt.ylabel("Percentage Change")
+    # plt.title("Percentage Change vs Cohen's d")
+    # plt.ylim(-5, 5)  # Cap y-axis
+    # plt.grid(True)
+    # plt.show()
+
+    # exit()
     # fix_ndcg_columns(dataset="BeerAdvocate")
     # exit()
     # datasett = "ml-1mm"
@@ -162,7 +190,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ablation_results(dataset="yelp2018")
+        plot_ablation_results(dataset="BeerAdvocate")
         # plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
