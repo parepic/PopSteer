@@ -253,9 +253,9 @@ class SAE(nn.Module):
             # sds_pop = torch.from_numpy(self.d_pop[self.ablate_list]).to(self.device)
             sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
             if self.dampen_now:
-                x[:, self.ablate_list] -= 0.5*sds
+                x[:, self.ablate_list] -= 2*sds
             elif self.dampen_now == False:
-                x[:, self.ablate_list] += 0.5*sds
+                x[:, self.ablate_list] += 2*sds
 
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
