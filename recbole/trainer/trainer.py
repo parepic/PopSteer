@@ -897,8 +897,8 @@ class Trainer(AbstractTrainer):
         popularity_df = pd.read_csv(f"./dataset/{self.dataset}/item_popularity_labels.csv")
         popularity_dict = dict(zip(popularity_df["item_id:token"], popularity_df["interaction_count"]))
         for batch_idx, batched_data in enumerate(iter_data):
-            if cur==times:
-                break
+            # if cur==times:
+            #     break
             cur+=1
             if eval_data:
                 interaction, history_index, positive_u, positive_i = batched_data
@@ -938,7 +938,7 @@ class Trainer(AbstractTrainer):
                 "activation_count": counts,
                 "apr_org": aprs.detach().cpu().numpy(),
                 "apr_steered": aprs_steered.detach().cpu().numpy(),
-                "apr_diff": (apr_org - aprs_steered).detach().cpu().numpy()
+                "apr_diff": (aprs - aprs_steered).detach().cpu().numpy()
             }
         )
         
