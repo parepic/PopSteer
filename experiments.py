@@ -63,6 +63,8 @@ def ablate_neurons(args):
     # --- Ablate unpopular neurons first
     for i in range(len(unpop_neurons)):
         trainer.model.sae_module_u.ablate_list = unpop_neurons[:i]
+        trainer.model.sae_module_u.dampen_now = False
+
         test_result = trainer.evaluate(
             test_data,
             model_file=args.path,
@@ -86,6 +88,7 @@ def ablate_neurons(args):
     for i in range(len(pop_neurons)):
         # print(i)
         trainer.model.sae_module_u.ablate_list = pop_neurons[:i]
+        trainer.model.sae_module_u.dampen_now = True
         test_result = trainer.evaluate(
             test_data,
             model_file=args.path,

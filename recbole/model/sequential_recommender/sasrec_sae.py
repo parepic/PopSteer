@@ -171,6 +171,7 @@ class SAE(nn.Module):
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
         self.steered_activations=None
+        self.dampen_now = None
         self.d_min = None
         self.activated_features = torch.zeros(config["train_batch_size"], self.hidden_dim)
         self.analyze_neurons = False
@@ -246,7 +247,11 @@ class SAE(nn.Module):
 
         if self.ablate_list is not None:
             sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
-            x[:, self.ablate_list] -= sds
+            if self.dampen_now:
+                x[:, self.ablate_list] -= sds
+            elif self.dampen_now == False:
+                x[:, self.ablate_list] += sds
+
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
         if self.ablate_index is not None:
