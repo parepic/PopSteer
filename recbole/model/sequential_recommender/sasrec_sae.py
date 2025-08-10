@@ -184,7 +184,7 @@ class SAE(nn.Module):
         self.previous_activate_latents = None
         self.epoch_idx=0
         self.new_epoch = False
-        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
+        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].detach().cpu().to_numpy()
 
         self.item_activations = np.zeros(self.hidden_dim)
         self.highest_activations = {
