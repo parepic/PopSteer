@@ -2110,6 +2110,10 @@ def analyze_activation_popularity(
 
 
 
+from pathlib import Path
+from typing import List, Tuple
+import pandas as pd
+
 def top_neurons_by_effect_size(dataset: str, n: int, threshold: float = 1.0) -> Tuple[List[int], List[int]]:
     """Return two lists of neuron IDs selected by activation and effect size, with
     zero-activation neurons removed *after* the top-n selection."""
@@ -2159,7 +2163,6 @@ def top_neurons_by_effect_size(dataset: str, n: int, threshold: float = 1.0) -> 
     )
 
     return positive_ids, negative_ids
-
 
 
 def plot_ablation_results(dataset: str, show: bool = True, save_png: bool = False):
