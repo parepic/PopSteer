@@ -245,7 +245,7 @@ class SAE(nn.Module):
         """ 
 
         if self.ablate_list is not None:
-            sds = torch.from_numpy(self.d[self.ablate_list])
+            sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
             x[:, self.ablate_list] -= sds
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
