@@ -897,8 +897,8 @@ class Trainer(AbstractTrainer):
         popularity_df = pd.read_csv(f"./dataset/{self.dataset}/item_popularity_labels.csv")
         popularity_dict = dict(zip(popularity_df["item_id:token"], popularity_df["interaction_count"]))
         for batch_idx, batched_data in enumerate(iter_data):
-            # if cur==times:
-            #     break
+            if cur==times:
+                break
             cur+=1
             if eval_data:
                 interaction, history_index, positive_u, positive_i = batched_data
@@ -931,6 +931,7 @@ class Trainer(AbstractTrainer):
                 print(aprs)
                 print(aprs_steered)
         counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
+        cohens = pd.read_csv(rf"./dataset/{self.dataset}/user/cohens_d.csv")["cohens_d"].to_numpy()
         # Build a DataFrame with explicit neuron IDs
         df = pd.DataFrame(
             {
@@ -938,7 +939,8 @@ class Trainer(AbstractTrainer):
                 "activation_count": counts,
                 "apr_org": aprs.detach().cpu().numpy(),
                 "apr_steered": aprs_steered.detach().cpu().numpy(),
-                "apr_diff": (aprs - aprs_steered).detach().cpu().numpy()
+                "apr_diff": (aprs - aprs_steered).detach().cpu().numpy(),
+                "cohens_d": cohens
             }
         )
         
