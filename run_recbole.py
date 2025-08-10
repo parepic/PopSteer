@@ -190,7 +190,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ablation_results(dataset="steam")
+        plot_ablation_results(dataset="BeerAdvocate")
         # plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
