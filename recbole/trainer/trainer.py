@@ -889,6 +889,8 @@ class Trainer(AbstractTrainer):
             if show_progress
             else data
         )
+        out_path = rf"./dataset/{self.dataset}/neuron_stats_test.csv"
+
         times = 100
         cur = 0
         activations = []
@@ -896,9 +898,11 @@ class Trainer(AbstractTrainer):
         aprs_steered = torch.zeros(self.model.sae_module_u.hidden_dim, dtype=torch.float32, device=self.device)
         popularity_df = pd.read_csv(f"./dataset/{self.dataset}/item_popularity_labels.csv")
         popularity_dict = dict(zip(popularity_df["item_id:token"], popularity_df["interaction_count"]))
+        cohens = pd.read_csv(rf"./dataset/{self.dataset}/user/cohens_d.csv")["cohens_d"].to_numpy()
+
         for batch_idx, batched_data in enumerate(iter_data):
-            if cur==times:
-                break
+            # if cur==times:
+            #     break
             cur+=1
             if eval_data:
                 interaction, history_index, positive_u, positive_i = batched_data
@@ -930,8 +934,26 @@ class Trainer(AbstractTrainer):
                 self.model.sae_module_u.ablate_index = None
                 print(aprs)
                 print(aprs_steered)
+                if cur%250 == 0:
+                    counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
+                    df = pd.DataFrame(
+                        {
+                            "neuron_id": range(len(counts)) / 2,
+                            "activation_count": counts,
+                            "apr_org": aprs.detach().cpu().numpy() / cur,
+                            "apr_steered": aprs_steered.detach().cpu().numpy() / cur,
+                            "apr_diff": ((aprs - aprs_steered) / cur).detach().cpu().numpy(),
+                            "cohens_d": cohens
+                        }
+                    )
+
+                # Create the directory if it doesn’t exist
+                os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                df.to_csv(out_path, index=False)
+
+
+
         counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
-        cohens = pd.read_csv(rf"./dataset/{self.dataset}/user/cohens_d.csv")["cohens_d"].to_numpy()
         # Build a DataFrame with explicit neuron IDs
         df = pd.DataFrame(
             {
@@ -943,9 +965,8 @@ class Trainer(AbstractTrainer):
                 "cohens_d": cohens
             }
         )
-        
+
         # Create the directory if it doesn’t exist
-        out_path = rf"./dataset/{self.dataset}/neuron_stats_test.csv"
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         df.to_csv(out_path, index=False)
 
