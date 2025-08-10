@@ -106,7 +106,7 @@ if __name__ == "__main__":
     # datasett = "ml-1mm"
     # if os.path.exists(rf"./dataset/{datasett}/activations.h5"):
     #     os.remove(rf"./dataset/{datasett}/activations.h5")
-    # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5", binsize=0.5)
+    # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5", binsize=0.5, nomid=True)
     # exit()
 
     # a, b = top_neurons_by_effect_size(dataset="ml-1mm", n=500)

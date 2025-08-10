@@ -120,8 +120,8 @@ class SASRec_SAE(SASRec):
             save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            acts = self.sae_module_u.last_activations[:, 5140]
-            save_batch_to_h5(users, acts, dataset=self.dataset)
+            # acts = self.sae_module_u.last_activations[:, 5140]
+            # save_batch_to_h5(users, acts, dataset=self.dataset)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
             # if self.fair:

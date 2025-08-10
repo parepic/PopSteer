@@ -2021,17 +2021,20 @@ def analyze_activation_popularity(
     label_dataset_name: str = "labels",
     binsize: float = 0.1,
     show: bool = True,
+    nomid: bool = False,
 ) -> Tuple[pd.DataFrame, plt.Figure]:
     """
-    For each activation bin (width = `binsize`) show how many sequences have
-    popularity-label −1, 0 and 1.
+    For each activation bin (width = `binsize`) count sequences with popularity labels −1, 0, 1.
+    If `nomid` is True, exclude label 0 from outputs and plot only −1 and 1.
 
     Returns
     -------
     counts_df : pd.DataFrame
-        Columns = ['bin_left', 'bin_right', '-1', '0', '1', 'total'].
+        If nomid is False: columns ['bin_left', 'bin_right', '-1', '0', '1', 'total'].
+        If nomid is True : columns ['bin_left', 'bin_right', '-1', '1', 'total'] and
+        'total' = (-1 + 1) only.
     fig : matplotlib.figure.Figure
-        Stacked-bar figure (red = −1, grey = 0, green = 1).
+        Stacked-bar figure (red = −1, grey = 0, green = 1; grey omitted when nomid=True).
     """
     # ── load data ──────────────────────────────────────────────────────────────
     root = Path("./dataset") / dataset
@@ -2044,8 +2047,6 @@ def analyze_activation_popularity(
     if activ.ndim != 1 or labels.ndim != 1 or activ.shape[0] != labels.shape[0]:
         raise ValueError("`C` and `labels` must both be 1-D and aligned row-wise.")
 
-
-
     # ── bin activations ────────────────────────────────────────────────────────
     xmin, xmax = activ.min(), activ.max()
     xedges = np.arange(
@@ -2055,7 +2056,8 @@ def analyze_activation_popularity(
     )
     bin_ids = np.digitize(activ, xedges) - 1  # 0-based bin index
     n_bins  = len(xedges) - 1
-    lbl_vals = (-1, 1)                     # expected label set
+    lbl_vals = (-1, 0, 1)                      # expected label set
+    plot_labels = (-1, 1) if nomid else lbl_vals
 
     # count[label, bin] → ndarray 3×n_bins
     counts = np.zeros((3, n_bins), dtype=int)
@@ -2063,36 +2065,42 @@ def analyze_activation_popularity(
         try:
             li = lbl_vals.index(lbl)
         except ValueError:
-            continue                          # skip unexpected labels
+            continue                           # skip unexpected labels
         counts[li, b] += 1
 
     # ── DataFrame output ───────────────────────────────────────────────────────
     counts_df = pd.DataFrame({
         "bin_left" : xedges[:-1],
         "bin_right": xedges[1:],
-        "-1"       : counts[0],
-        "1"        : counts[2],
     })
-    counts_df["total"] = counts_df[["-1","1"]].sum(axis=1)
+    # add only the requested label columns
+    label_cols_to_add = ("-1", "1") if nomid else ("-1", "0", "1")
+    col_map = {"-1": counts[0], "0": counts[1], "1": counts[2]}
+    for c in label_cols_to_add:
+        counts_df[c] = col_map[c]
+
+    # compute total over displayed label columns
+    counts_df["total"] = counts_df[list(label_cols_to_add)].sum(axis=1)
 
     # ── stacked-bar figure ────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(10, 4))
     lefts  = counts_df["bin_left"]
-    width  = binsize * 0.9                 # gap between bars
+    width  = binsize * 0.9
 
     bottoms = np.zeros(n_bins)
-    colors  = {-1: "#d73027",  1: "#1a9850"}
+    colors  = {-1: "#d73027", 0: "#aaaaaa", 1: "#1a9850"}
 
-    for lbl in lbl_vals:
+    for lbl in plot_labels:
+        vals = counts_df[str(lbl)]
         ax.bar(
             lefts,
-            counts_df[str(lbl)],
+            vals,
             width,
             bottom=bottoms,
             label=f"label {lbl}",
             color=colors[lbl],
         )
-        bottoms += counts_df[str(lbl)]
+        bottoms += vals.to_numpy()
 
     ax.set_xlabel("Activation (binned)")
     ax.set_ylabel("Count")
@@ -2106,7 +2114,6 @@ def analyze_activation_popularity(
         plt.show()
 
     return counts_df, fig
-
 
 
 from pathlib import Path
