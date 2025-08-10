@@ -255,7 +255,7 @@ class SAE(nn.Module):
             if self.dampen_now:
                 x[:, self.ablate_list] -= 2*sds
             elif self.dampen_now == False:
-                x[:, self.ablate_list] += 2*sds
+                x[:, self.ablate_list] += 1.5*sds
 
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
