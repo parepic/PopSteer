@@ -157,8 +157,10 @@ class SAE(nn.Module):
         self.steer_dir = config['steer_dir'][self.index]
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
+        self.selected = None
         self.dampen=False
         self.ablate_list = None
+        self.ablate_index = None
         self.neuron_count = None
         self.unpopular_only = None
         self.corr_file = None
@@ -241,14 +243,18 @@ class SAE(nn.Module):
         """
         if self.ablate_list is not None:
             x[:, self.ablate_list] = 0
+        if self.ablate_index is not None:
+            x[:, self.ablate_index] = 0
         topk_values, topk_indices = torch.topk(x, self.k, dim=1)
+        self.selected = topk_indices[0]
         flat_indices = topk_indices.view(-1)
 
         # Count occurrences of each index
         counts = torch.bincount(flat_indices, minlength=self.hidden_dim)
 
         # Update activation count
-        self.activation_count += counts.to(self.activation_count.device)
+        if self.ablate_index is None:
+            self.activation_count += counts.to(self.activation_count.device)
         self.activate_latents.update(topk_indices.cpu().numpy().flatten())
 
         # Save epoch activations if needed

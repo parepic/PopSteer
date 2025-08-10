@@ -263,7 +263,7 @@ def load_data_and_model(model_file, dict=None):
         config.internal_config_dict['use_gpu'] = False
         config.internal_config_dict['gpu_id'] = '-1'
         config['device'] = 'cpu'
-
+    config["eval_batch_size"] = 1 
     init_seed(config["seed"], config["reproducibility"])
     init_logger(config)
     logger = getLogger()

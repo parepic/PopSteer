@@ -858,6 +858,92 @@ class Trainer(AbstractTrainer):
 
 
 
+
+    @torch.no_grad()
+    def ablate_neurons(
+        self, data, model_file=None, show_progress=True, eval_data=True, sae=True
+    ):
+        r"""Evaluate the model based on the eval data.
+
+        Args:
+            eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
+        """
+        
+        checkpoint_file = model_file
+        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        self.device = torch.device(self.device)
+        message_output = "Loading model structure and parameters from {}".format(
+            checkpoint_file
+        )
+        self.logger.info(message_output)
+        # self.model.create_synthetic_dataset()
+        self.model.eval()
+        iter_data = (
+            tqdm(
+                data,
+                total=len(data),
+                ncols=100,
+            )
+            if show_progress
+            else data
+        )
+        activations = []
+        aprs = torch.zeros(self.model.sae_module_u.hidden_dim, dtype=torch.float32, device=self.device)
+        aprs_steered = torch.zeros(self.model.sae_module_u.hidden_dim, dtype=torch.float32, device=self.device)
+        popularity_df = pd.read_csv(f"./dataset/{self.dataset}/item_popularity_labels.csv")
+        popularity_dict = dict(zip(popularity_df["item_id:token"], popularity_df["interaction_count"]))
+        for batch_idx, batched_data in enumerate(iter_data):
+            if eval_data:
+                interaction, history_index, positive_u, positive_i = batched_data
+            else:
+                interaction = batched_data
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+                scores1 = self.model.full_sort_predict(interaction)
+                top_recs = torch.argsort(scores1, dim=1, descending=True)[:, :10]
+                selected = self.model.sae_module_u.selected.detach().clone()
+
+                activations.append(selected)
+                # Convert tensor to list for lookup
+                recommended_list = top_recs[0].tolist()
+                K = 10
+                total_popularity = sum(popularity_dict.get(item_id, 0) for item_id in recommended_list[:K])
+                apr_org = total_popularity / K
+                aprs.index_add_(0, selected, torch.full_like(self.model.sae_module_u.selected, apr_org, dtype=torch.float32))
+                for i, value in enumerate(selected):
+                    self.model.sae_module_u.ablate_index = int(value)
+                    scores = self.model.full_sort_predict(interaction)
+                    top_recs = torch.argsort(scores, dim=1, descending=True)[:, :10]
+                    recommended_list =  top_recs[0].tolist()
+                    K = 10
+                    total_popularity = sum(popularity_dict.get(item_id, 0) for item_id in recommended_list[:K])
+                    apr = total_popularity / K
+                    aprs_steered[int(value)] += apr
+                self.model.sae_module_u.ablate_index = None
+                print(aprs)
+                print(aprs_steered)
+        counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
+        # Build a DataFrame with explicit neuron IDs
+        df = pd.DataFrame(
+            {
+                "neuron_id": range(len(counts)),
+                "activation_count": counts,
+                "apr_org": apr_org,
+                "apr_steered": aprs_steered,
+                "apr_diff": apr_org - aprs_steered
+            }
+        )
+        
+        # Create the directory if it doesn’t exist
+        out_path = rf"./dataset/{self.dataset}/neuron_stats_test.csv"
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        df.to_csv(out_path, index=False)
+
+
+
     @torch.no_grad()
     def save_user_scores_neurons(
         self, data, model_file=None, show_progress=True, eval_data=True, sae=True

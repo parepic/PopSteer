@@ -247,7 +247,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        # model.sae_module_u.beta=1
+        model.sae_module_u.beta=1
 
         if args.fair:
             model.fair = True
@@ -259,7 +259,8 @@ if __name__ == "__main__":
             if not args.int:
                 trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
             elif args.int:
-                trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
+                trainer.ablate_neurons(test_data, model_file=args.path, eval_data=True)
+                # trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
             exit()
         test_result = trainer.evaluate(
             test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
