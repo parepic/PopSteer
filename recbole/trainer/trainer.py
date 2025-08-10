@@ -889,12 +889,17 @@ class Trainer(AbstractTrainer):
             if show_progress
             else data
         )
+        times = 100
+        cur = 0
         activations = []
         aprs = torch.zeros(self.model.sae_module_u.hidden_dim, dtype=torch.float32, device=self.device)
         aprs_steered = torch.zeros(self.model.sae_module_u.hidden_dim, dtype=torch.float32, device=self.device)
         popularity_df = pd.read_csv(f"./dataset/{self.dataset}/item_popularity_labels.csv")
         popularity_dict = dict(zip(popularity_df["item_id:token"], popularity_df["interaction_count"]))
         for batch_idx, batched_data in enumerate(iter_data):
+            if cur==times:
+                break
+            cur+=1
             if eval_data:
                 interaction, history_index, positive_u, positive_i = batched_data
             else:
