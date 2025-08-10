@@ -2111,49 +2111,36 @@ def analyze_activation_popularity(
 
 
 def top_neurons_by_effect_size(dataset: str, n: int, threshold: float = 1.0) -> Tuple[List[int], List[int]]:
-    """Return two **lists** of neuron IDs selected by activation and effect size.
-
-    Selection pipeline
-    ------------------
-    1. **Rank** neurons by their *activation_count* (**descending**) and keep the
-       top ``n`` most active ones.
-    2. **Filter** those *n* neurons to retain only those whose absolute Cohen’s
-       *d* satisfies ``|d| ≥ threshold``.
-    3. Split the survivors into two lists ordered by descending ``|d|``:
-       • ``positive_ids`` – neurons with *d* > 0.
-       • ``negative_ids`` – neurons with *d* < 0.
-
-    Parameters
-    ----------
-    dataset : str
-        Name of the dataset directory under ``./dataset``.
-    n : int
-        Number of most active neurons to consider before the Cohen’s *d* filter.
-    threshold : float, default 1.0
-        Minimum absolute Cohen’s *d* required for a neuron to be selected.
-
-    Returns
-    -------
-    Tuple[List[int], List[int]]
-        ``positive_ids, negative_ids``.
-    """
+    """Return two lists of neuron IDs selected by activation and effect size, with
+    zero-activation neurons removed *after* the top-n selection."""
 
     root = Path("./dataset") / dataset
 
-    # 1️⃣  Rank by activation and keep top-n
+    # 1) Rank by activation and keep top-n
     act_df = pd.read_csv(root / "activation_counts.csv")
-    top_act_ids = (
+    top_act = (
         act_df.sort_values("activation_count", ascending=False)
-        .head(n)["neuron_id"]
-        .astype(int)
+              .head(n)
     )
 
-    # 2️⃣  Read Cohen's d and intersect with top-n active IDs
+    # Drop zero-activation neurons from the top-n *after* ranking
+    top_act = top_act[top_act["activation_count"] > 0]
+    if top_act.empty:
+        return [], []
+
+    top_act_ids = top_act["neuron_id"].astype(int)
+
+    # 2) Read Cohen's d and intersect with the surviving top-n active IDs
     d_series = pd.read_csv(root / "user" / "cohens_d.csv", index_col=0)["cohens_d"]
     d_top = d_series.reindex(top_act_ids).dropna()
 
-    # 3️⃣  Apply |d| ≥ threshold, then split by sign and sort by |d|
+    if d_top.empty:
+        return [], []
+
+    # 3) Apply |d| ≥ threshold, then split by sign and sort by |d|
     d_filtered = d_top[d_top.abs() >= threshold]
+    if d_filtered.empty:
+        return [], []
 
     positive_ids: List[int] = (
         d_filtered[d_filtered > 0]
