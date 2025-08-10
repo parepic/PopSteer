@@ -25,7 +25,6 @@ class SASRec_SAE(SASRec):
         self.sae_module_u = SAE(config, side="user")
         self.a1 = 0.9
         self.a2 = 0.1
-        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
         for param in self.parameters():
             param.requires_grad = False
         for param in self.sae_module_i.parameters():
@@ -148,6 +147,7 @@ class SAE(nn.Module):
     def __init__(self,config, side="item"):
         super(SAE, self).__init__()
         self.side=side
+        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
         self.dataset = config["dataset"]
         self.index = 0 if side == "item" else 1
         self.k = config["sae_k"][self.index]
