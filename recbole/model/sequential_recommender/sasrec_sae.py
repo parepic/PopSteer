@@ -147,7 +147,6 @@ class SAE(nn.Module):
     def __init__(self,config, side="item"):
         super(SAE, self).__init__()
         self.side=side
-        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
         self.dataset = config["dataset"]
         self.index = 0 if side == "item" else 1
         self.k = config["sae_k"][self.index]
@@ -185,6 +184,8 @@ class SAE(nn.Module):
         self.previous_activate_latents = None
         self.epoch_idx=0
         self.new_epoch = False
+        self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
+
         self.item_activations = np.zeros(self.hidden_dim)
         self.highest_activations = {
             j: {
