@@ -938,7 +938,7 @@ class Trainer(AbstractTrainer):
                     counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
                     df = pd.DataFrame(
                         {
-                            "neuron_id": range(len(counts)) / 2,
+                            "neuron_id": range(len(counts)),
                             "activation_count": counts,
                             "apr_org": aprs.detach().cpu().numpy() / cur,
                             "apr_steered": aprs_steered.detach().cpu().numpy() / cur,
@@ -956,9 +956,9 @@ class Trainer(AbstractTrainer):
             {
                 "neuron_id": range(len(counts)),
                 "activation_count": counts,
-                "apr_org": aprs.detach().cpu().numpy(),
-                "apr_steered": aprs_steered.detach().cpu().numpy(),
-                "apr_diff": (aprs - aprs_steered).detach().cpu().numpy(),
+                "apr_org": aprs.detach().cpu().numpy() / cur,
+                "apr_steered": aprs_steered.detach().cpu().numpy() / cur,
+                "apr_diff": ((aprs - aprs_steered) / cur).detach().cpu().numpy(),
                 "cohens_d": cohens
             }
         )
