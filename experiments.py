@@ -54,6 +54,7 @@ def ablate_neurons(args):
     trainer.eval_collector.data_collect(train_data)
 
     pop_neurons, unpop_neurons = top_neurons_by_effect_size(dataset=config["dataset"], threshold=1, n=50000)
+    print(pop_neurons[0])
     print(len(pop_neurons), " pop neurons length ")
     print(len(unpop_neurons), " unpop neurons length ")
 

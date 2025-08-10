@@ -2055,7 +2055,7 @@ def analyze_activation_popularity(
     )
     bin_ids = np.digitize(activ, xedges) - 1  # 0-based bin index
     n_bins  = len(xedges) - 1
-    lbl_vals = (-1, 0, 1)                     # expected label set
+    lbl_vals = (-1, 1)                     # expected label set
 
     # count[label, bin] → ndarray 3×n_bins
     counts = np.zeros((3, n_bins), dtype=int)
@@ -2071,10 +2071,9 @@ def analyze_activation_popularity(
         "bin_left" : xedges[:-1],
         "bin_right": xedges[1:],
         "-1"       : counts[0],
-        "0"        : counts[1],
         "1"        : counts[2],
     })
-    counts_df["total"] = counts_df[["-1", "0", "1"]].sum(axis=1)
+    counts_df["total"] = counts_df[["-1","1"]].sum(axis=1)
 
     # ── stacked-bar figure ────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -2082,7 +2081,7 @@ def analyze_activation_popularity(
     width  = binsize * 0.9                 # gap between bars
 
     bottoms = np.zeros(n_bins)
-    colors  = {-1: "#d73027", 0: "#aaaaaa", 1: "#1a9850"}
+    colors  = {-1: "#d73027",  1: "#1a9850"}
 
     for lbl in lbl_vals:
         ax.bar(

@@ -923,8 +923,8 @@ def create_user_label_csv(
         .dropna()
     )
     n_users_pop = len(user_scores)
-    top_pop = math.ceil(0.1 * n_users_pop)
-    bot_pop = math.floor(0.1 * n_users_pop)
+    top_pop = math.ceil(0.33 * n_users_pop)
+    bot_pop = math.floor(0.33 * n_users_pop)
 
     sorted_users_pop = user_scores.sort_values("score")
     bottom_users_pop = set(sorted_users_pop["user_id:token"].iloc[:bot_pop])

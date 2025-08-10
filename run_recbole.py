@@ -106,12 +106,13 @@ if __name__ == "__main__":
     # datasett = "ml-1mm"
     # if os.path.exists(rf"./dataset/{datasett}/activations.h5"):
     #     os.remove(rf"./dataset/{datasett}/activations.h5")
+    # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5", binsize=0.5)
+    # exit()
+
     # a, b = top_neurons_by_effect_size(dataset="ml-1mm", n=500)
     # print(len(a), " ", len(b))
     # exit()
     # print(top_neurons_by_effect_size(dataset="ml-1mm", n=1000))
-    # exit()
-    # analyze_activation_popularity(dataset="ml-1mm", h5_filename="activations.h5")
     # exit()
     # create_atlas_visualizations(dataset="ml-1mm", subsample=10000)
     # exit()
@@ -190,7 +191,7 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ablation_results(dataset="ml-1mm")
+        plot_ablation_results(dataset="BeerAdvocate")
         # plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
@@ -275,7 +276,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        model.sae_module_u.beta=1
+        # model.sae_module_u.beta=1
 
         if args.fair:
             model.fair = True

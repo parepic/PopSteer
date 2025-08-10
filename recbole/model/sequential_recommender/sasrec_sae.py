@@ -120,8 +120,8 @@ class SASRec_SAE(SASRec):
             save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
         else:
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            # acts = self.sae_module_u.last_activations[:, 871]
-            # save_batch_to_h5(users, acts, dataset=self.dataset)
+            acts = self.sae_module_u.last_activations[:, 5140]
+            save_batch_to_h5(users, acts, dataset=self.dataset)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
             # if self.fair:
@@ -253,9 +253,9 @@ class SAE(nn.Module):
             sds_pop = torch.from_numpy(self.d_pop[self.ablate_list]).to(self.device)
             # sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
             if self.dampen_now:
-                x[:, self.ablate_list] -= sds_pop
+                x[:, self.ablate_list] -= 2 * sds_pop
             elif self.dampen_now == False:
-                x[:, self.ablate_list] -= sds_unpop
+                x[:, self.ablate_list] -= 2 * sds_unpop
 
         # print("bunu deyireme qaqa ", x.shape)
         # x[:, 3400] = 0
@@ -418,7 +418,6 @@ class SAE(nn.Module):
     def forward(self, x, sequences=None, train_mode=False, save_result=False, epoch=None, dataset=None, pop_scores=None):
             sae_in = x - self.b_dec
             pre_acts1 = self.encoder(sae_in)
-            self.last_activations = pre_acts1
             # if self.analyze == True:
             #     if self.side == "item":
             #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
@@ -427,7 +426,8 @@ class SAE(nn.Module):
             self.steered_activations = pre_acts1
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)
-               
+            self.last_activations = torch.where(pre_acts == 0, torch.tensor(-0.1, dtype=pre_acts.dtype, device=pre_acts.device), pre_acts)
+            # self.last_activations = pre_acts1 - 1
             z = self.topk_activation(pre_acts, sequences, save_result=False)
             x_reconstructed = z @ self.W_dec + self.b_dec
             e = x_reconstructed - x
