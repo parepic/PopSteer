@@ -48,7 +48,7 @@ def fix_ndcg_columns(dataset: str) -> None:
         The dataset folder name (e.g. "msmarco", "trec23", …).
     """
     # Resolve paths
-    base_dir = Path(f"./dataset/{dataset}/results-final").resolve()
+    base_dir = Path(f"./dataset/duor_baseline").resolve()
     new_dir  = base_dir / "new"
     new_dir.mkdir(parents=True, exist_ok=True)
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     )
     if args.plot:
         # plot_ablation_results(dataset="steam")
-        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
         ablate_neurons(args)
@@ -206,7 +206,7 @@ if __name__ == "__main__":
             config_dict = json.loads(args.config_json)
         except json.JSONDecodeError:
             config_dict = ast.literal_eval(args.config_json)
-    
+
     if args.tune == True:
         tune(args)
         exit()
@@ -232,8 +232,8 @@ if __name__ == "__main__":
             config_dict = {
                 "base_path": "./saved/lightgcn_ml-1m.pth",
                 # "load": "./saved/sasrec_beer-32-44.pth",
-                "sae_scale_size": [32, 32],
-                "sae_k": [8, 8],
+                "sae_scale_size": [48, 48],
+                "sae_k": [16, 16],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
