@@ -230,7 +230,7 @@ if __name__ == "__main__":
 
 
             config_dict = {
-                "base_path": "./saved/lightgcn_ml-1m.pth",
+                "base_path": "./saved/lightgcn_beer.pth",
                 # "load": "./saved/sasrec_beer-32-44.pth",
                 "sae_scale_size": [48, 48],
                 "sae_k": [16, 16],
