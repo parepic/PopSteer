@@ -89,9 +89,9 @@ class SASRec_SAE(SASRec):
 
         if popular is not None:
             if popular == True:
-                item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+                item_seq = make_items_popular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
             elif popular == False:
-                item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+                item_seq = make_items_unpopular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
             # item_seq = replace_with_mappings(sequences=item_seq, popular=popular, dataset=self.dataset)
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight

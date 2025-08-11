@@ -887,7 +887,7 @@ def create_user_label_csv(
 
     Output →  ./dataset/{dataset}/user_popularity_labels.csv  with columns:
         user_id:token, timestamp, popularity_label, item_popularity,
-        interaction_count, activity_label
+        interaction_count, activity_label, user_popularity_score
     """
 
     # ---------- basic checks & frame ------------------------------------
@@ -993,6 +993,12 @@ def create_user_label_csv(
         df["user_id:token"].map(act_label_map).fillna(0).astype("int8")
     )
 
+    # ---------- user popularity score (head-item fraction) ---------------
+    # Fraction of interactions with head items per user
+    df["user_popularity_score"] = df.groupby("user_id:token")["item_popularity"]\
+        .transform(lambda s: float((s == 1).sum()) / float(len(s)))\
+        .astype("float32")
+
     # ---------- save & return -------------------------------------------
     df = df.sort_values(
         ["user_id:token", "timestamp"],
@@ -1007,6 +1013,7 @@ def create_user_label_csv(
             "item_popularity",
             "interaction_count",
             "activity_label",
+            "user_popularity_score",
         ]
     ].to_csv(out_csv, sep=sep, index=False)
 

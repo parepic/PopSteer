@@ -825,10 +825,10 @@ class Trainer(AbstractTrainer):
             interaction = interaction.to(self.device)
             self.optimizer.zero_grad()
             with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                # self.model.full_sort_predict(interaction, popular=True)
-                # self.model.full_sort_predict(interaction, popular=False)
-                # self.model.full_sort_predict(interaction, steered=False)
-                self.model.full_sort_predict(interaction)
+                self.model.full_sort_predict(interaction, popular=True)
+                self.model.full_sort_predict(interaction, popular=False)
+                self.model.full_sort_predict(interaction, steered=False)
+                self.model.full_sort_predict(interaction, steered= True)
         counts = self.model.sae_module_u.activation_count.detach().cpu().numpy()
 
         # Build a DataFrame with explicit neuron IDs
@@ -1135,8 +1135,8 @@ class Trainer(AbstractTrainer):
             with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
                 self.model.restore_user_e = None
                 self.model.full_sort_predict(interaction)
-                unpopular_seqs = make_items_unpopular(10000, dataset=self.dataset, n=10)
-                popular_seqs = make_items_popular(10000, dataset=self.dataset, n=10)
+                unpopular_seqs = make_items_unpopular(2000, dataset=self.dataset, n=50)
+                popular_seqs = make_items_popular(2000, dataset=self.dataset, n=50)
                 pop_embs, unpop_embs = self.generate_synthetic_embeddings(pop=popular_seqs, unpop=unpopular_seqs, i_emb=self.model.base_i, emb_dim=self.model.latent_dim)
                 self.model.sae_module_u(pop_embs)
                 y = self.model.sae_module_u.last_activations.clone().detach()

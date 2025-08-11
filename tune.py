@@ -64,7 +64,7 @@ def tune(args):
         config_dict = {
             "alpha": [0, 0],
             "steer": [0, 1],
-            "steer_dir": [-1, -1],
+            "steer_dir": [0, 0],
             # "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
@@ -78,15 +78,15 @@ def tune(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
     # trainer.model.N = 140
-    change1 = [0.0, 0.5, 1.0, 1.5, 2.0]
-    change2 = [0.0, 0.5, 1.0, 1.5, 2.0]
-    change3 = [0, 0.5, 1, 1.5, 2.0]
+    change1 = [0, 0.25, 0.5, 0.75, 1.0]
+    change2 = [0, 0.25, 0.5, 0.75, 1.0]
+    change3 = [0]
     # change2 = [0.0, 0.1, 0.2, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.2]
 
 
     rows_raw = []
 
-    trainer.model.sae_module_u.alpha = 0.0
+    trainer.model.sae_module_u.steer = False
     test_result = trainer.evaluate(
         test_data,
         model_file=args.path,
@@ -100,6 +100,9 @@ def tune(args):
         'alpha_n': 0,
         **{k: test_result[k] for k in metric_keys}
     })
+
+    trainer.model.sae_module_u.steer = True
+
     for c3 in change3:
         for c1 in change1:
             for c2 in change2:
@@ -115,7 +118,7 @@ def tune(args):
                     load_best_model=False,
                     show_progress=config["show_progress"]
                 )
-                # trainer.model.restore_item_e = None
+                trainer.model.restore_user_e = None
                 rows_raw.append({
                     'alpha_u': c2,
                     'alpha_i': c1,
@@ -336,9 +339,9 @@ def tune_baseline(args):
             print(" | ".join(formatted_cells))
     string = "org"
     if args.ipr:
-        string = "org"
+        string = "ipr"
     if args.fair:
-        string = "org"
+        string = "fair"
     if args.random:
         string = "random"
     if args.pct:

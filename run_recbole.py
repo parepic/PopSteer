@@ -114,8 +114,8 @@ if __name__ == "__main__":
     # exit()
     # print(top_neurons_by_effect_size(dataset="ml-1mm", n=1000))
     # exit()
-    # create_atlas_visualizations(dataset="ml-1mm", subsample=10000)
-    # exit()
+    create_atlas_visualizations(dataset="ml-1mm", subsample=5000, hidden_dim=8192)
+    exit()
     # retain_last_x_days(dataset="music", days=178)
     # exit()
     # keep_random_users(dataset="yoochoose-clicks", x=25000)
@@ -146,6 +146,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
     parser.add_argument("--int", action="store_true", help="Whether to analyze for interpretation")
+    parser.add_argument("--lightgcn", action="store_true", help="Whether to analyze for interpretation")
 
     parser.add_argument("--tune", action="store_true", help="Whether to train model")
     parser.add_argument("--ablate", action="store_true", help="Whether to ablate neurons")
@@ -193,7 +194,7 @@ if __name__ == "__main__":
     )
     if args.plot:
         # plot_ablation_results(dataset="steam")
-        plot_ndcg_vs_fairness(dataset="yelp2018", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
         ablate_neurons(args)
@@ -201,7 +202,6 @@ if __name__ == "__main__":
     config_dict = dict()
     if args.config_json:
         import json, ast
-        # Allow either strict JSON or python-literal (for lists)
         try:
             config_dict = json.loads(args.config_json)
         except json.JSONDecodeError:
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [0.1, 0.5],
+                "alpha": [0.1, 3],
                 "steer": [0, 1],
                 "steer_dir": [0, 0],
                 "analyze": True,
@@ -277,7 +277,7 @@ if __name__ == "__main__":
         )
         # model.sae_module_u.N=2048
         # model.sae_module_u.alpha=3
-        model.sae_module_u.beta=0.5
+        model.sae_module_u.beta=3
 
         if args.fair:
             model.fair = True
@@ -286,13 +286,13 @@ if __name__ == "__main__":
         trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
         trainer.eval_collector.data_collect(train_data)
         if args.analyze:
+            if args.lightgcn:
+                trainer.synthetic_lightgcn(data=test_data, eval_data=True, model_file=args.path)
+                exit()
             if not args.int:
                 trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
             elif args.int:
-                trainer.ablate_neurons(test_data, model_file=args.path, eval_data=True)
-            elif args.lightgcn:
-                trainer.synthetic_lightgcn(data=test_data, eval_data=True, model_file=args.path)
-                exit()
+                trainer.analyze_neurons_int(test_data, model_file=args.path, eval_data=True)
             exit()
         test_result = trainer.evaluate(
             test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]

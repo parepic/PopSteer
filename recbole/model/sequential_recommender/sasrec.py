@@ -62,15 +62,15 @@ class SASRec(SequentialRecommender):
         self.pct = False
         self.min_reg = False
         self.duor = False
-        self.hidden_dropout_prob = config["hidden_dropout_prob"]
-        self.attn_dropout_prob = config["attn_dropout_prob"]
-        self.hidden_act = config["hidden_act"]
-        self.layer_norm_eps = config["layer_norm_eps"]
         self._item2provider = None
         self._A = None
         self._rho = None
         self._iid2pid = None
 
+        self.hidden_dropout_prob = config["hidden_dropout_prob"]
+        self.attn_dropout_prob = config["attn_dropout_prob"]
+        self.hidden_act = config["hidden_act"]
+        self.layer_norm_eps = config["layer_norm_eps"]
         self.initializer_range = config["initializer_range"]
         self.loss_type = config["loss_type"]
         self.dataset = config["dataset"]

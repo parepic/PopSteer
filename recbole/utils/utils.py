@@ -1700,6 +1700,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import umap
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
