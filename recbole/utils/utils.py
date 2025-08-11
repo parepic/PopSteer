@@ -843,6 +843,7 @@ def plot_ndcg_vs_fairness(
         "FAIR":            rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
         "PCT":             rf"dataset/{dataset}/results/{model}_pct_{dataset}-results.csv",
         "Min-reg":             rf"dataset/{dataset}/results/{model}_min_reg_{dataset}-results.csv",
+        "DUOR":             rf"dataset/{dataset}/results/{model}_duor_{dataset}-results.csv"
 
     }
 
@@ -1564,15 +1565,12 @@ def save_cohens_d(dataset: str, n1=None, n2=None) -> None:
 
 
 
-def make_items_popular(item_seq_len, dataset, n):
+def make_items_popular(batch_size, dataset, n):
     item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels.csv")
     
     # Filter rows where popularity_label == 1
     filtered_items = item_labels[item_labels['popularity_label'] == 1]
     available_ids = filtered_items['item_id:token'].tolist()
-    
-    # Get batch size
-    batch_size = item_seq_len.shape[0]
     selected_item_ids = []
 
     for _ in range(batch_size):
@@ -1583,15 +1581,12 @@ def make_items_popular(item_seq_len, dataset, n):
     selected_tensor = torch.tensor(selected_item_ids)
     return selected_tensor
 
-def make_items_unpopular(item_seq_len, dataset, n):
+def make_items_unpopular(batch_size, dataset, n):
     item_labels = pd.read_csv(rf"./dataset/{dataset}/item_popularity_labels.csv")
     
     # Filter rows where popularity_label == 1
     filtered_items = item_labels[item_labels['popularity_label'] == -1]
     available_ids = filtered_items['item_id:token'].tolist()
-    
-    # Get batch size
-    batch_size = item_seq_len.shape[0]
     selected_item_ids = []
 
     for _ in range(batch_size):
@@ -2252,3 +2247,72 @@ def plot_ablation_results(dataset: str, show: bool = True, save_png: bool = Fals
 
     if show:
         plt.show()
+
+
+
+def generate_synthetic_embeddings(pop, unpop, i_emb, emb_dim, num_steps=200, lr=0.01, num_negatives=4):
+    """
+    Generates synthetic user embeddings for pop and unpop profiles.
+    
+    Args:
+    - pop: torch.Tensor (N, K) - Item indices for popular synthetic profiles.
+    - unpop: torch.Tensor (N, K) - Item indices for unpopular synthetic profiles.
+    - i_emb: torch.Tensor (J, D) - Fixed item embeddings.
+    - emb_dim: int - Embedding dimension D (must match i_emb.shape[1]).
+    - num_steps: int - Number of optimization steps per synthetic user.
+    - lr: float - Learning rate for Adam optimizer.
+    - num_negatives: int - Number of negative samples per positive.
+    
+    Returns:
+    - pop_embs: torch.Tensor (N, D) - Embeddings for pop synthetic users.
+    - unpop_embs: torch.Tensor (N, D) - Embeddings for unpop synthetic users.
+    """
+    device = i_emb.device
+    N, K = pop.shape
+    J = i_emb.shape[0]
+    
+    def optimize_user(pos_indices):
+        # Initialize random user embedding
+        user_emb = torch.nn.Parameter(torch.randn(1, emb_dim, device=device))
+        optimizer = torch.optim.Adam([user_emb], lr=lr)
+        
+        # Get fixed positive item embeddings
+        positives = i_emb[pos_indices]  # (K, D)
+        
+        for _ in range(num_steps):
+            # Sample negatives (random items not in positives for simplicity)
+            neg_indices = torch.randint(0, J, (K * num_negatives,), device=device)
+            negatives = i_emb[neg_indices]  # (K * num_negatives, D)
+            
+            # Compute scores (dot products)
+            pos_scores = (user_emb @ positives.T).squeeze()  # (K,)
+            neg_scores = (user_emb @ negatives.T).squeeze()  # (K * num_negatives,)
+            
+            # BPR loss: maximize pos > neg
+            # Repeat pos_scores to match neg shape for pairwise comparison
+            pos_scores = pos_scores.repeat_interleave(num_negatives)  # (K * num_negatives,)
+            loss = -torch.log(torch.sigmoid(pos_scores - neg_scores)).mean()
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        return user_emb.detach().squeeze()  # (D,)
+    
+    # Optimize for pop
+    pop_embs = []
+    for i in range(N):
+        pos_indices = pop[i]  # (K,)
+        user_emb = optimize_user(pos_indices)
+        pop_embs.append(user_emb)
+    pop_embs = torch.stack(pop_embs)  # (N, D)
+    
+    # Optimize for unpop
+    unpop_embs = []
+    for i in range(N):
+        pos_indices = unpop[i]  # (K,)
+        user_emb = optimize_user(pos_indices)
+        unpop_embs.append(user_emb)
+    unpop_embs = torch.stack(unpop_embs)  # (N, D)
+    
+    return pop_embs, unpop_embs

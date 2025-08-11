@@ -141,7 +141,8 @@ if __name__ == "__main__":
     parser.add_argument("--fair", action="store_true", help="Whether to use FAIR")
     parser.add_argument("--random", action="store_true", help="Whether to use random reranker")
     parser.add_argument("--ipr", action="store_true", help="Whether to use random reranker")
-    parser.add_argument("--pct", action="store_true", help="Whether to use random reranker")
+    parser.add_argument("--pct", action="store_true", help="Whether to use pct")
+    parser.add_argument("--duor", action="store_true", help="Whether to use duor")
 
     parser.add_argument("--analyze", action="store_true", help="Whether to analyze neurons")
     parser.add_argument("--int", action="store_true", help="Whether to analyze for interpretation")
@@ -191,8 +192,8 @@ if __name__ == "__main__":
         args.config_files.strip().split(" ") if args.config_files else None
     )
     if args.plot:
-        plot_ablation_results(dataset="steam")
-        # plot_ndcg_vs_fairness(dataset="BeerAdvocate", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        # plot_ablation_results(dataset="steam")
+        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
         exit()
     if args.ablate:
         ablate_neurons(args)
@@ -229,7 +230,7 @@ if __name__ == "__main__":
 
 
             config_dict = {
-                # "base_path": "./saved/lightgcn_ml-1m.pth",
+                "base_path": "./saved/lightgcn_ml-1m.pth",
                 # "load": "./saved/sasrec_beer-32-44.pth",
                 "sae_scale_size": [32, 32],
                 "sae_k": [8, 8],

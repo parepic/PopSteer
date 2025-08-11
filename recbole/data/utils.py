@@ -539,16 +539,19 @@ def create_samplers(config, dataset, built_datasets):
 
 def create_item_popularity_csv(item_ids, dataset: str, p: float):
     """
-    Create a CSV assigning popularity labels based on item rank (not interaction mass).
+    Create a CSV assigning popularity labels based on two methods.
+
+    - popularity_label: Original rank-based: top p fraction items +1, bottom p fraction -1, middle 0.
+    - cum_popularity_label: Cumulative Pareto: Head (+1) most popular until >=80% interactions, Tail (-1) rest.
 
     Args:
         dataset : dataset directory name under ./dataset/{dataset}
-        p       : fraction (0 < p < 1). Example: 0.1 -> top 10% items get +1, bottom 10% get -1.
+        p       : fraction (0 < p < 1) for original method. Example: 0.1 -> top 10% items get +1, bottom 10% get -1.
                   Usually choose p <= 0.5 to avoid overlap.
 
     Output:
         Writes ./dataset/{dataset}/item_popularity_labels.csv with columns:
-            item_id:token, interaction_count, pop_score, popularity_label
+            item_id:token, interaction_count, pop_score, popularity_label, cum_popularity_label
     """
     if not (0 < p < 1):
         raise ValueError("p must be in (0,1)")
@@ -594,15 +597,44 @@ def create_item_popularity_csv(item_ids, dataset: str, p: float):
 
     df["popularity_label"] = df["item_id:token"].apply(assign_label)
 
-    # Optional: sort by interaction_count descending for readability
-    df_out = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
+    # Now compute cum_popularity_label
+    # Sort by interaction_count descending (if not already)
+    df = df.sort_values("interaction_count", ascending=False).reset_index(drop=True)
+
+    # Cumulative sum
+    df['cum_interactions'] = df['interaction_count'].cumsum()
+
+    # Find the smallest k where cum >= 80% total
+    threshold = 0.8 * total_interactions
+    if (df['cum_interactions'] >= threshold).any():
+        k_cum = (df['cum_interactions'] >= threshold).idxmax() + 1  # +1 to include the row where it crosses
+    else:
+        k_cum = len(df)  # All are head if not reaching 80%
+
+    # Assign labels
+    df['cum_popularity_label'] = -1  # Tail by default
+    df.loc[:k_cum-1, 'cum_popularity_label'] = 1  # Head
+
+    # Drop temp cum column
+    df = df.drop(columns=['cum_interactions'])
 
     out_path = os.path.join(dataset_path, "item_popularity_labels.csv")
-    df_out.to_csv(out_path, index=False)
+    df.to_csv(out_path, index=False)
     print(f"Written {out_path}")
-    print(f"Top set size: {len(top_item_ids)}  Bottom set size: {len(bottom_item_ids)}  Total items: {n_items}")
+
+    # Original
+    top_size = len(top_item_ids)
+    bottom_size = len(bottom_item_ids)
+    print(f"Original: Top set size: {top_size}  Bottom set size: {bottom_size}  Total items: {n_items}")
+
+    # Cumulative
+    head_size = (df['cum_popularity_label'] == 1).sum()
+    tail_size = (df['cum_popularity_label'] == -1).sum()
+    print(f"Cumulative: Head set size: {head_size} (popular, covering >=80% interactions)  Tail set size: {tail_size}  Total items: {n_items}")
 
 
+
+    
 import os
 import numpy as np
 import pandas as pd

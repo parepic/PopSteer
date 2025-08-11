@@ -56,7 +56,7 @@ SHORT_NAMES = {
 
 
 def tune(args):
-    if args.fair or args.random or args.ipr or args.pct or args.min_reg:
+    if args.fair or args.random or args.ipr or args.pct or args.min_reg or args.duor:
         tune_baseline(args)
         exit()
 
@@ -223,18 +223,18 @@ def tune_baseline(args):
     trainer.eval_collector.data_collect(train_data)
 
 
-    # test_result = trainer.evaluate(
-    #     test_data,
-    #     model_file=args.path,
-    #     load_best_model=False,
-    #     show_progress=config["show_progress"]
-    # )
+    test_result = trainer.evaluate(
+        test_data,
+        model_file=args.path,
+        load_best_model=False,
+        show_progress=config["show_progress"]
+    )
     trainer.model.restore_item_e = None
     rows_raw   = []
     baseline = {
         'alpha_u': 0,
         'alpha_i': 0,
-        **{k: 0.0 for k in metric_keys}}
+        **{k: test_result[k] for k in metric_keys}}
     rows_raw.append(baseline)
     formatted_cells = [
         f"{0.0}",
@@ -257,6 +257,8 @@ def tune_baseline(args):
         model.pct = True
     elif args.min_reg:
         model.min_reg = True
+    elif args.duor:
+        model.duor = True
 
     change1 = [0.0, 0.0]
     change2 = [0.0]
@@ -276,6 +278,10 @@ def tune_baseline(args):
     if args.min_reg:
         change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.0]
+    if args.duor:
+        change1 = [50, 100, 250, 500, 1000]
+        change2 = [0.0]
+
 
     # --- prepare header printing ---
     header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
@@ -339,6 +345,8 @@ def tune_baseline(args):
         string = "pct"
     if args.min_reg:
         string = "min_reg"
+    if args.duor:
+        string = "duor"
 
     # --- Write selected results to CSV (unchanged) ---
     csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_{string}_{config["dataset"]}-results.csv'

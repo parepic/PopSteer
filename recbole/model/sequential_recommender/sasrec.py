@@ -61,6 +61,7 @@ class SASRec(SequentialRecommender):
         self.ipr = False
         self.pct = False
         self.min_reg = False
+        self.duor = False
         self.hidden_dropout_prob = config["hidden_dropout_prob"]
         self.attn_dropout_prob = config["attn_dropout_prob"]
         self.hidden_act = config["hidden_act"]
@@ -178,9 +179,9 @@ class SASRec(SequentialRecommender):
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         if popular is not None:
             if popular == True:
-                item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+                item_seq = make_items_popular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
             elif popular == False:
-                item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
+                item_seq = make_items_unpopular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
             seq_output = self.forward(item_seq, item_seq_len)
             save_batch_activations(self.last_activations, self.hidden_size, self.dataset, popular) 
             return
@@ -198,6 +199,8 @@ class SASRec(SequentialRecommender):
                 scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
             if self.min_reg:
                 scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.a1)
+            if self.duor:
+                scores = self.duor_boost_scores(scores=scores, profile_item_ids=item_seq, candidate_size=self.a1)
             return scores
 
 
@@ -747,3 +750,129 @@ class SASRec(SequentialRecommender):
                 new_scores[b, item_id] = float(boost_base - idx * eps)
         
         return new_scores
+    
+    def _load_popularity_labels(self, num_items: int,
+                                csv_path: str,
+                                device: torch.device) -> torch.Tensor:
+        """
+        Returns a length-N tensor with values {+1 (Head), -1 (Tail)}.
+        Missing ids default to Tail (-1).
+        """
+        df = pd.read_csv(csv_path)
+        # Columns are "item_id:token" and "popularity_label" (1 for Head, -1 for Tail)
+        ids = df["item_id:token"].astype(int).to_numpy()
+        labs = df["cum_popularity_label"].astype(int).to_numpy()
+        labels = torch.full((num_items,), -1, dtype=torch.int8, device=device)
+        valid = (ids >= 0) & (ids < num_items)
+        if valid.any():
+            labels[torch.as_tensor(ids[valid], device=device)] = torch.as_tensor(labs[valid], device=device, dtype=torch.int8)
+        return labels  # shape: (N,), values in {1, -1}
+
+
+
+    @torch.no_grad()
+    def duor_boost_scores(
+        self,
+        scores: torch.Tensor,                 # (B, N)
+        profile_item_ids: torch.Tensor,       # (B, K)
+        candidate_size: int = 250,
+        topk: int = 10,
+    ) -> torch.Tensor:
+        """
+        Dynamic user-oriented re-ranking with score boosting.
+        Returns a new tensor of shape (B, N) with boosted scores for the selected top-k.
+        """
+        popularity_csv_path = rf"./dataset/{self.dataset}/item_popularity_labels.csv"
+        assert scores.dim() == 2, "scores must be (B, N)"
+        B, N = scores.shape
+        device = scores.device
+        dtype = scores.dtype
+
+        # Load or use provided Head/Tail labels (+1 / -1) for item ids [0..N-1]
+        pop_labels = self._load_popularity_labels(N, popularity_csv_path, device=device)  # (N,)
+
+        # Output scores
+        out = scores.clone()
+
+        # Big margin to push chosen items above all others; keeps internal ordering by adding original score
+        BIG = torch.tensor(1e6, device=device, dtype=dtype).item()
+
+        # Work per user
+        for b in range(B):
+            # --- User popularity inclination Pop_u (fraction of Head items in the user profile sequence) ---
+            hist = profile_item_ids[b]  # (K,)
+            valid_mask = (hist >= 0) & (hist < N)
+            hist = hist[valid_mask]
+            if hist.numel() == 0:
+                pop_u = 0.5  # neutral fallback
+            else:
+                heads = (pop_labels[hist] == 1).sum().item()
+                pop_u = heads / float(hist.numel())
+
+            # --- Candidate pool: top-M by base scores ---
+            M = min(candidate_size, N)
+            cand_vals, cand_idx = torch.topk(scores[b], k=M, largest=True, sorted=True)  # (M,)
+            cand_labels = pop_labels[cand_idx]  # (M,), values in {1,-1}
+
+            # Track which candidates are still available
+            available = torch.ones(M, device=device, dtype=torch.bool)
+
+            # Selected item ids for this user
+            chosen_item_ids = []
+
+            for k in range(topk):
+                # If nothing left (shouldn't happen when M >= topk), break early
+                if not available.any():
+                    break
+
+                if k == 0:
+                    # First pick: highest score among all candidates
+                    # Masked argmax
+                    masked = cand_vals.clone()
+                    masked[~available] = -torch.inf
+                    pick_j = torch.argmax(masked).item()
+                else:
+                    # Current RecList popularity share
+                    if len(chosen_item_ids) == 0:
+                        pop_rec = 0.0
+                    else:
+                        chosen_is_head = (pop_labels[torch.as_tensor(chosen_item_ids, device=device)] == 1).sum().item()
+                        pop_rec = chosen_is_head / float(len(chosen_item_ids))
+
+                    # Decide which side is allowed this step
+                    if pop_rec < pop_u:
+                        allow_mask = (cand_labels == 1) & available  # need Head
+                    elif pop_rec > pop_u:
+                        allow_mask = (cand_labels == -1) & available  # need Tail
+                    else:
+                        allow_mask = available  # equality: allow all
+
+                    # If empty, fall back to any available candidate
+                    if not allow_mask.any():
+                        allow_mask = available
+
+                    # Pick highest score among the allowed set
+                    masked = cand_vals.clone()
+                    masked[~allow_mask] = -torch.inf
+                    pick_j = torch.argmax(masked).item()
+
+                # Record and remove from candidate pool
+                chosen_item_ids.append(int(cand_idx[pick_j].item()))
+                available[pick_j] = False
+
+            if len(chosen_item_ids) == 0:
+                continue  # nothing to boost
+
+            chosen_item_ids_tensor = torch.as_tensor(chosen_item_ids, device=device)
+
+
+            # base = out[b].max().item() + BIG
+            # for rank, item_id in enumerate(chosen_item_ids, start=1):
+            #     boost = base + BIG * (topk - rank + 1)  # Higher for earlier picks
+            #     out[b, item_id] = boost
+            # --- Boost: make chosen items dominate the top-10 while preserving their mutual order ---
+            # Add a big constant + original score. This keeps their internal ordering identical to pre-boost.
+            base = out[b].max().item() + BIG
+            out[b, chosen_item_ids_tensor] = base + scores[b, chosen_item_ids_tensor]
+
+        return out

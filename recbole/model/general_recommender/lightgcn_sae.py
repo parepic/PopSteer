@@ -75,12 +75,12 @@ class LightGCN_SAE(LightGCN):
 			self.base_u, self.base_i = super().forward()
 			u_emb, i_emb = self.base_u, self.base_i
 		if self.mode == "test":
-			if self.sae_module_i.steer:
-				i_emb = self.sae_module_i(self.base_i, train_mode=train_mode)
+			# if self.sae_module_i.steer:
+			# 	i_emb = self.sae_module_i(self.base_i, train_mode=train_mode)
 			if self.sae_module_u.steer:
 				u_emb = self.sae_module_u(self.base_u, train_mode=train_mode)
 		else:
-			i_emb = self.sae_module_i(self.base_i, train_mode=train_mode)
+			# i_emb = self.sae_module_i(self.base_i, train_mode=train_mode)
 			u_emb = self.sae_module_u(self.base_u, train_mode=train_mode)
 		return u_emb, i_emb
 	
@@ -89,10 +89,10 @@ class LightGCN_SAE(LightGCN):
 			self.restore_user_e, self.restore_item_e = None, None
 		
 		user_all_embeddings, item_all_embeddings = self.forward(train_mode=True)
-		sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
+		# sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
 		sae_loss_u = self.sae_module_u.fvu + self.sae_module_u.auxk_loss / 2
 		
-		return sae_loss_i + sae_loss_u
+		return sae_loss_u
 
 	def full_sort_predict(self, interaction):
 		user = interaction[self.USER_ID]
@@ -388,9 +388,9 @@ class SAE(nn.Module):
             sae_in = x - self.b_dec
             pre_acts1 = self.encoder(sae_in)
             self.last_activations = pre_acts1
-            # if self.analyze == True:
-            #     if self.side == "item":
-            #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
+            if self.analyze == True:
+                if self.side == "item":
+                    compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
             self.steered_activations = pre_acts1
