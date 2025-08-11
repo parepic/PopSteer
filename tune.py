@@ -65,7 +65,7 @@ def tune(args):
             "alpha": [0, 0],
             "steer": [0, 1],
             "steer_dir": [-1, -1],
-            "analyze": True,
+            # "analyze": True,
             "tail_ratio": 0.2,
             "sae_mode": "test",
             "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
@@ -248,7 +248,7 @@ def tune_baseline(args):
 
     
     if args.fair:
-        model.fair = False
+        model.fair = True
     elif args.random:
         model.random = True
     elif args.ipr:
@@ -264,8 +264,8 @@ def tune_baseline(args):
     change2 = [0.0]
 
     if args.fair:
-        change1 = [0.0, 0.0]
-        change2 = [0.0]
+        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+        change2 = [0.01, 0.05, 0.1]
     if args.random:
         change1 = [15, 30, 50, 75, 100]
         change2 = [0.0]

@@ -100,8 +100,8 @@ class LightGCN_SAE(LightGCN):
 		# print(user, " ffff")
 		# row = df[df['user_id:token'] == user]
 		# self.sae_module_i.dampen = (row.iloc[0]['popularity_label'] != 1)
-		# if self.restore_user_e is None or self.restore_item_e is None:
-		self.restore_user_e, self.restore_item_e = self.forward(train_mode=False)
+		if self.restore_user_e is None or self.restore_item_e is None:
+			self.restore_user_e, self.restore_item_e = self.forward(train_mode=False)
 		u_embeddings = self.restore_user_e[user]
 
 		scores = torch.matmul(u_embeddings, self.restore_item_e.transpose(0, 1))

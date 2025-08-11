@@ -86,7 +86,7 @@ class SASRec_SAE(SASRec):
         #     item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
         # elif popular == False:
         #     item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
-        
+
         if popular is not None:
             if popular == True:
                 item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
@@ -421,12 +421,13 @@ class SAE(nn.Module):
             # if self.analyze == True:
             #     if self.side == "item":
             #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
+            self.last_activations = pre_acts1
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
             self.steered_activations = pre_acts1
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)
-            self.last_activations = torch.where(pre_acts == 0, torch.tensor(-0.1, dtype=pre_acts.dtype, device=pre_acts.device), pre_acts)
+            # self.last_activations = torch.where(pre_acts == 0, torch.tensor(-0.1, dtype=pre_acts.dtype, device=pre_acts.device), pre_acts)
             # self.last_activations = pre_acts1 - 1
             z = self.topk_activation(pre_acts, sequences, save_result=False)
             x_reconstructed = z @ self.W_dec + self.b_dec

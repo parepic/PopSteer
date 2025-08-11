@@ -1133,11 +1133,16 @@ class Trainer(AbstractTrainer):
             interaction = interaction.to(self.device)
             self.optimizer.zero_grad()
             with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+                self.model.restore_user_e = None
                 self.model.full_sort_predict(interaction)
-                unpopular_seqs = make_items_unpopular(5000, dataset=self.dataset, n=10)
-                popular_seqs = make_items_popular(5000, dataset=self.dataset, n=10)
+                unpopular_seqs = make_items_unpopular(10000, dataset=self.dataset, n=10)
+                popular_seqs = make_items_popular(10000, dataset=self.dataset, n=10)
                 pop_embs, unpop_embs = self.generate_synthetic_embeddings(pop=popular_seqs, unpop=unpopular_seqs, i_emb=self.model.base_i, emb_dim=self.model.latent_dim)
-                self.compute_neuron_stats(pop_activations=pop_embs, unpop_activations=unpop_embs, dataset=self.dataset, side="user")
+                self.model.sae_module_u(pop_embs)
+                y = self.model.sae_module_u.last_activations.clone().detach()
+                self.model.sae_module_u(unpop_embs)
+                z = self.model.sae_module_u.last_activations.clone().detach()
+                self.compute_neuron_stats(pop_activations=y, unpop_activations=z, dataset=self.dataset, side="user")
                 break
 
 
@@ -1161,7 +1166,9 @@ class Trainer(AbstractTrainer):
         device = i_emb.device
         N, K = pop.shape
         J = i_emb.shape[0]
-        
+        print(len(pop))
+        print(len(unpop))
+
         def optimize_user(pos_indices):
             # Initialize random user embedding
             user_emb = torch.nn.Parameter(torch.randn(1, emb_dim, device=device))
@@ -1193,7 +1200,8 @@ class Trainer(AbstractTrainer):
         # Optimize for pop
         pop_embs = []
         for i in range(N):
-            print(i, " blet ")
+            if i%50 == 0:
+                print(i, " blet ")
             pos_indices = pop[i]  # (K,)
             user_emb = optimize_user(pos_indices)
             pop_embs.append(user_emb)
@@ -1203,6 +1211,9 @@ class Trainer(AbstractTrainer):
         unpop_embs = []
         for i in range(N):
             pos_indices = unpop[i]  # (K,)
+            if i%50 == 0:
+                print(i, " blet  2")
+
             user_emb = optimize_user(pos_indices)
             unpop_embs.append(user_emb)
         unpop_embs = torch.stack(unpop_embs)  # (N, D)
