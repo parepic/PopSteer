@@ -1025,7 +1025,189 @@ class Trainer(AbstractTrainer):
 
 
 
+    def compute_neuron_stats(
+        self,
+        pop_activations: torch.Tensor,
+        unpop_activations: torch.Tensor,
+        dataset: str,
+        side: str
+    ) -> None:
+        popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
+        unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
+        cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
+        if pop_activations.ndim != 2:
+            raise ValueError("`pop_activations` must have shape (B_pop, N)")
+        if unpop_activations.ndim != 2:
+            raise ValueError("`unpop_activations` must have shape (B_unp, N)")
+        B_pop, N = pop_activations.shape
+        B_unp, N_unp = unpop_activations.shape
+        if N != N_unp:
+            raise ValueError("Number of neurons N must match between pop and unpop activations")
 
+        # Helper: stats for activations tensor
+        def _stats(acts: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, int]:
+            n = acts.shape[0]
+            if n:
+                mean = acts.mean(0)
+                sd = acts.std(0, unbiased=False)
+            else:
+                mean = torch.zeros(N)
+                sd = torch.zeros(N)
+            return mean, sd, n
+
+        # Compute group stats
+        mean_pop, sd_pop, n_pop = _stats(pop_activations)
+        mean_unp, sd_unp, n_unp = _stats(unpop_activations)
+
+        # Save per-group CSVs
+        def _to_csv(fname: str, mean: torch.Tensor, sd: torch.Tensor):
+            pd.DataFrame({
+                "neuron": range(N),
+                "mean": mean.tolist(),
+                "sd": sd.tolist(),
+            }).to_csv(fname, index=False)
+
+        _to_csv(popular_out, mean_pop, sd_pop)
+        _to_csv(unpopular_out, mean_unp, sd_unp)
+
+        # Cohen’s d per neuron
+        # pooled SD: sqrt( ((n1-1)*s1² + (n2-1)*s2²) / (n1+n2−2) )
+        # handle zero-row or zero-variance cases gracefully
+        denom = max(n_pop + n_unp - 2, 1)                      # scalar, ≥1
+        pooled_var = ((n_pop - 1) * sd_pop.pow(2) +
+                    (n_unp - 1) * sd_unp.pow(2)) / denom
+        pooled_sd = torch.sqrt(pooled_var)
+
+        valid = (pooled_sd != 0) & (n_pop > 0) & (n_unp > 0)
+        cohens_d = torch.full((N,), float('nan'))
+        cohens_d[valid] = (mean_pop[valid] - mean_unp[valid]) / pooled_sd[valid]
+
+        pd.DataFrame({
+            "neuron":   range(N),
+            "cohens_d": cohens_d.tolist(),
+        }).to_csv(cohens_d_out, index=False)
+
+
+
+
+    def synthetic_lightgcn(
+        self, data, model_file=None, show_progress=True, eval_data=True, sae=True
+    ):
+        r"""Evaluate the model based on the eval data.
+
+        Args:
+            eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
+        """
+        
+        checkpoint_file = model_file
+        print(checkpoint_file)
+        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
+        self.model.load_state_dict(checkpoint["state_dict"])
+        self.model.load_other_parameter(checkpoint.get("other_parameter"))
+        self.device = torch.device(self.device)
+        message_output = "Loading model structure and parameters from {}".format(
+            checkpoint_file
+        )
+        self.logger.info(message_output)
+        # self.model.create_synthetic_dataset()
+        self.model.eval()
+        iter_data = (
+            tqdm(
+                data,
+                total=len(data),
+                ncols=100,
+            )
+            if show_progress
+            else data
+        )
+        times = 200
+        cur = 0
+        for batch_idx, batched_data in enumerate(iter_data):
+            if cur >= times:
+                break
+            cur+=1
+            if eval_data:
+                interaction, history_index, positive_u, positive_i = batched_data
+            else:
+                interaction = batched_data
+            interaction = interaction.to(self.device)
+            self.optimizer.zero_grad()
+            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
+                self.model.full_sort_predict(interaction)
+                unpopular_seqs = make_items_unpopular(5000, dataset=self.dataset, n=10)
+                popular_seqs = make_items_popular(5000, dataset=self.dataset, n=10)
+                pop_embs, unpop_embs = self.generate_synthetic_embeddings(pop=popular_seqs, unpop=unpopular_seqs, i_emb=self.model.base_i, emb_dim=self.model.latent_dim)
+                self.compute_neuron_stats(pop_activations=pop_embs, unpop_activations=unpop_embs, dataset=self.dataset, side="user")
+                break
+
+
+    def generate_synthetic_embeddings(self, pop, unpop, i_emb, emb_dim, num_steps=200, lr=0.01, num_negatives=4):
+        """
+        Generates synthetic user embeddings for pop and unpop profiles.
+        
+        Args:
+        - pop: torch.Tensor (N, K) - Item indices for popular synthetic profiles.
+        - unpop: torch.Tensor (N, K) - Item indices for unpopular synthetic profiles.
+        - i_emb: torch.Tensor (J, D) - Fixed item embeddings.
+        - emb_dim: int - Embedding dimension D (must match i_emb.shape[1]).
+        - num_steps: int - Number of optimization steps per synthetic user.
+        - lr: float - Learning rate for Adam optimizer.
+        - num_negatives: int - Number of negative samples per positive.
+        
+        Returns:
+        - pop_embs: torch.Tensor (N, D) - Embeddings for pop synthetic users.
+        - unpop_embs: torch.Tensor (N, D) - Embeddings for unpop synthetic users.
+        """
+        device = i_emb.device
+        N, K = pop.shape
+        J = i_emb.shape[0]
+        
+        def optimize_user(pos_indices):
+            # Initialize random user embedding
+            user_emb = torch.nn.Parameter(torch.randn(1, emb_dim, device=device))
+            optimizer = torch.optim.Adam([user_emb], lr=lr)
+            
+            # Get fixed positive item embeddings
+            positives = i_emb[pos_indices]  # (K, D)
+            
+            for _ in range(num_steps):
+                # Sample negatives (random items not in positives for simplicity)
+                neg_indices = torch.randint(0, J, (K * num_negatives,), device=device)
+                negatives = i_emb[neg_indices]  # (K * num_negatives, D)
+                
+                # Compute scores (dot products)
+                pos_scores = (user_emb @ positives.T).squeeze()  # (K,)
+                neg_scores = (user_emb @ negatives.T).squeeze()  # (K * num_negatives,)
+                
+                # BPR loss: maximize pos > neg
+                # Repeat pos_scores to match neg shape for pairwise comparison
+                pos_scores = pos_scores.repeat_interleave(num_negatives)  # (K * num_negatives,)
+                loss = -torch.log(torch.sigmoid(pos_scores - neg_scores)).mean()
+                
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            
+            return user_emb.detach().squeeze()  # (D,)
+        
+        # Optimize for pop
+        pop_embs = []
+        for i in range(N):
+            print(i, " blet ")
+            pos_indices = pop[i]  # (K,)
+            user_emb = optimize_user(pos_indices)
+            pop_embs.append(user_emb)
+        pop_embs = torch.stack(pop_embs)  # (N, D)
+        
+        # Optimize for unpop
+        unpop_embs = []
+        for i in range(N):
+            pos_indices = unpop[i]  # (K,)
+            user_emb = optimize_user(pos_indices)
+            unpop_embs.append(user_emb)
+        unpop_embs = torch.stack(unpop_embs)  # (N, D)
+        
+        return pop_embs, unpop_embs
 
 
 
@@ -1836,185 +2018,3 @@ class NCLTrainer(Trainer):
         return total_loss
 
 
-    def compute_neuron_stats(
-        self,
-        pop_activations: torch.Tensor,
-        unpop_activations: torch.Tensor,
-        dataset: str,
-        side: str
-    ) -> None:
-        popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
-        unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
-        cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
-        if pop_activations.ndim != 2:
-            raise ValueError("`pop_activations` must have shape (B_pop, N)")
-        if unpop_activations.ndim != 2:
-            raise ValueError("`unpop_activations` must have shape (B_unp, N)")
-        B_pop, N = pop_activations.shape
-        B_unp, N_unp = unpop_activations.shape
-        if N != N_unp:
-            raise ValueError("Number of neurons N must match between pop and unpop activations")
-
-        # Helper: stats for activations tensor
-        def _stats(acts: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, int]:
-            n = acts.shape[0]
-            if n:
-                mean = acts.mean(0)
-                sd = acts.std(0, unbiased=False)
-            else:
-                mean = torch.zeros(N)
-                sd = torch.zeros(N)
-            return mean, sd, n
-
-        # Compute group stats
-        mean_pop, sd_pop, n_pop = _stats(pop_activations)
-        mean_unp, sd_unp, n_unp = _stats(unpop_activations)
-
-        # Save per-group CSVs
-        def _to_csv(fname: str, mean: torch.Tensor, sd: torch.Tensor):
-            pd.DataFrame({
-                "neuron": range(N),
-                "mean": mean.tolist(),
-                "sd": sd.tolist(),
-            }).to_csv(fname, index=False)
-
-        _to_csv(popular_out, mean_pop, sd_pop)
-        _to_csv(unpopular_out, mean_unp, sd_unp)
-
-        # Cohen’s d per neuron
-        # pooled SD: sqrt( ((n1-1)*s1² + (n2-1)*s2²) / (n1+n2−2) )
-        # handle zero-row or zero-variance cases gracefully
-        denom = max(n_pop + n_unp - 2, 1)                      # scalar, ≥1
-        pooled_var = ((n_pop - 1) * sd_pop.pow(2) +
-                    (n_unp - 1) * sd_unp.pow(2)) / denom
-        pooled_sd = torch.sqrt(pooled_var)
-
-        valid = (pooled_sd != 0) & (n_pop > 0) & (n_unp > 0)
-        cohens_d = torch.full((N,), float('nan'))
-        cohens_d[valid] = (mean_pop[valid] - mean_unp[valid]) / pooled_sd[valid]
-
-        pd.DataFrame({
-            "neuron":   range(N),
-            "cohens_d": cohens_d.tolist(),
-        }).to_csv(cohens_d_out, index=False)
-
-
-
-
-    @torch.no_grad()
-    def synthetic_lightgcn(
-        self, data, model_file=None, show_progress=True, eval_data=True, sae=True
-    ):
-        r"""Evaluate the model based on the eval data.
-
-        Args:
-            eval_daanalyze_neurons.OrderedDict: eval result, key is the eval metric and value in the corresponding metric value.
-        """
-        
-        checkpoint_file = model_file
-        checkpoint = torch.load(checkpoint_file, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(checkpoint["state_dict"])
-        self.model.load_other_parameter(checkpoint.get("other_parameter"))
-        self.device = torch.device(self.device)
-        message_output = "Loading model structure and parameters from {}".format(
-            checkpoint_file
-        )
-        self.logger.info(message_output)
-        # self.model.create_synthetic_dataset()
-        self.model.eval()
-        iter_data = (
-            tqdm(
-                data,
-                total=len(data),
-                ncols=100,
-            )
-            if show_progress
-            else data
-        )
-        times = 200
-        cur = 0
-        for batch_idx, batched_data in enumerate(iter_data):
-            if cur >= times:
-                break
-            cur+=1
-            if eval_data:
-                interaction, history_index, positive_u, positive_i = batched_data
-            else:
-                interaction = batched_data
-            interaction = interaction.to(self.device)
-            self.optimizer.zero_grad()
-            with torch.autocast(device_type=self.device.type, enabled=self.enable_amp):
-                self.model.full_sort_predict(interaction)
-                unpopular_seqs = make_items_unpopular(5000, dataset=self.dataset)
-                popular_seqs = make_items_popular(5000, dataset=self.dataset)
-                pop_embs, unpop_embs = self.generate_synthetic_embeddings(pop=popular_seqs, unpop=unpopular_seqs, i_emb=self.model.base_i, emb_dim=self.model.latent_dim)
-                self.compute_neuron_stats(pop_activations=pop_embs, unpop_activations=unpop_embs, dataset=self.dataset, side="user")
-                break
-
-
-    def generate_synthetic_embeddings(self, pop, unpop, i_emb, emb_dim, num_steps=200, lr=0.01, num_negatives=4):
-        """
-        Generates synthetic user embeddings for pop and unpop profiles.
-        
-        Args:
-        - pop: torch.Tensor (N, K) - Item indices for popular synthetic profiles.
-        - unpop: torch.Tensor (N, K) - Item indices for unpopular synthetic profiles.
-        - i_emb: torch.Tensor (J, D) - Fixed item embeddings.
-        - emb_dim: int - Embedding dimension D (must match i_emb.shape[1]).
-        - num_steps: int - Number of optimization steps per synthetic user.
-        - lr: float - Learning rate for Adam optimizer.
-        - num_negatives: int - Number of negative samples per positive.
-        
-        Returns:
-        - pop_embs: torch.Tensor (N, D) - Embeddings for pop synthetic users.
-        - unpop_embs: torch.Tensor (N, D) - Embeddings for unpop synthetic users.
-        """
-        device = i_emb.device
-        N, K = pop.shape
-        J = i_emb.shape[0]
-        
-        def optimize_user(pos_indices):
-            # Initialize random user embedding
-            user_emb = torch.nn.Parameter(torch.randn(1, emb_dim, device=device))
-            optimizer = torch.optim.Adam([user_emb], lr=lr)
-            
-            # Get fixed positive item embeddings
-            positives = i_emb[pos_indices]  # (K, D)
-            
-            for _ in range(num_steps):
-                # Sample negatives (random items not in positives for simplicity)
-                neg_indices = torch.randint(0, J, (K * num_negatives,), device=device)
-                negatives = i_emb[neg_indices]  # (K * num_negatives, D)
-                
-                # Compute scores (dot products)
-                pos_scores = (user_emb @ positives.T).squeeze()  # (K,)
-                neg_scores = (user_emb @ negatives.T).squeeze()  # (K * num_negatives,)
-                
-                # BPR loss: maximize pos > neg
-                # Repeat pos_scores to match neg shape for pairwise comparison
-                pos_scores = pos_scores.repeat_interleave(num_negatives)  # (K * num_negatives,)
-                loss = -torch.log(torch.sigmoid(pos_scores - neg_scores)).mean()
-                
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-            
-            return user_emb.detach().squeeze()  # (D,)
-        
-        # Optimize for pop
-        pop_embs = []
-        for i in range(N):
-            pos_indices = pop[i]  # (K,)
-            user_emb = optimize_user(pos_indices)
-            pop_embs.append(user_emb)
-        pop_embs = torch.stack(pop_embs)  # (N, D)
-        
-        # Optimize for unpop
-        unpop_embs = []
-        for i in range(N):
-            pos_indices = unpop[i]  # (K,)
-            user_emb = optimize_user(pos_indices)
-            unpop_embs.append(user_emb)
-        unpop_embs = torch.stack(unpop_embs)  # (N, D)
-        
-        return pop_embs, unpop_embs

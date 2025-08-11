@@ -292,6 +292,8 @@ if __name__ == "__main__":
                 trainer.ablate_neurons(test_data, model_file=args.path, eval_data=True)
                 # trainer.analyze_neurons_int(train_data, model_file=args.path, eval_data=False)
             exit()
+        trainer.synthetic_lightgcn(data=test_data, eval_data=True, model_file=args.path)
+        exit()
         test_result = trainer.evaluate(
             test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
