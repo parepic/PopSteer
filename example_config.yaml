@@ -10,16 +10,13 @@ initializer_range: 0.02         # (float) The standard deviation for normal init
 loss_type: 'CE'                 # (str) The type of loss function. Range in ['BPR', 'CE'].
 
 analyze: False
-sae_k: 8
-sae_scale_size: 32
+sae_k: 44
+sae_scale_size: 64
 learning_rate:  1e-3
 valid_metric: "SAE_Loss_total"
-alpha: 0.0
 steer: 0
 "base_path": "./saved/sasrec_ml-1m.pth"
 # "load": "./saved/sasrec_beer-32-52.pth"
-"sae_scale_size": 96
-"sae_k": 52
 "learning_rate": 1e-3
 "alpha": 1.0
 "steer": 0
