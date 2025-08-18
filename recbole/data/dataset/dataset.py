@@ -1758,8 +1758,8 @@ class Dataset(torch.utils.data.Dataset):
 
 
         create_item_popularity_csv(item_ids=next_df[0]["item_id"], dataset=self.dataset_name, p=0.1)
-        # create_user_label_csv(user_ids=next_df[0]["user_id"], item_ids=next_df[0]["item_id"], alpha=1.0,
-        #                       timestamps=next_df[0]["timestamp"], dataset=self.dataset_name)
+        create_user_label_csv(user_ids=next_df[0]["user_id"], item_ids=next_df[0]["item_id"], alpha=1.0,
+                              timestamps=next_df[0]["timestamp"], dataset=self.dataset_name)
         # create_user_popularity_csv(self.dataset_name, p_pop=0.1, p_niche=0.1)
 
         next_ds = [self.copy(_) for _ in next_df]

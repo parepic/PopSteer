@@ -13,7 +13,16 @@ Reference:_
 import torch
 from torch import nn
 from recbole.model.sequential_recommender.sasrec import SASRec
-from recbole.utils import replace_with_mappings, save_batch_activations, compute_weighted_neuron_stats_by_row_item, make_items_popular, make_items_unpopular, save_batch_to_h5
+import torch
+import numpy as np
+import json
+import torch
+import torch.nn as nn
+from recbole.utils import utils
+import pandas as pd
+import random
+
+
 
 class SASRec_SAE(SASRec):
     def __init__(self, config, dataset):
@@ -40,8 +49,6 @@ class SASRec_SAE(SASRec):
         )
         position_ids = position_ids.unsqueeze(0).expand_as(item_seq)
         position_embedding = self.position_embedding(position_ids)
-        # reconstructed_weights = self.sae_module_i(self.item_embedding.weight, train_mode=True)
-        # item_emb = torch.nn.functional.embedding(item_seq, reconstructed_weights, padding_idx=0)
         item_emb = self.item_embedding(item_seq)
         input_emb = item_emb + position_embedding
         input_emb = self.LayerNorm(input_emb)
@@ -63,9 +70,9 @@ class SASRec_SAE(SASRec):
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         seq_output = self.forward(item_seq, item_seq_len, train_mode=True)
 
-        sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
+        # sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
         sae_loss_u = self.sae_module_u.fvu + self.sae_module_u.auxk_loss / 2
-        return sae_loss_u + sae_loss_i
+        return sae_loss_u
 
     def predict(self, interaction):
         item_seq = interaction[self.ITEM_SEQ]
@@ -78,69 +85,17 @@ class SASRec_SAE(SASRec):
 
 
 
-    def full_sort_predict(self, interaction, popular=None, steered=None):
+    def full_sort_predict(self, interaction):
         item_seq = interaction[self.ITEM_SEQ]
-        users = interaction[self.USER_ID]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
-        # if popular == True:
-        #     item_seq = make_items_popular(item_seq, self.dataset, self.max_seq_length).to(self.device)
-        # elif popular == False:
-        #     item_seq = make_items_unpopular(item_seq, self.dataset, self.max_seq_length).to(self.device)
-
-        if popular is not None:
-            if popular == True:
-                item_seq = make_items_popular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
-            elif popular == False:
-                item_seq = make_items_unpopular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
-            # item_seq = replace_with_mappings(sequences=item_seq, popular=popular, dataset=self.dataset)
-            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            test_items_emb = self.item_embedding.weight
-            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
-            # scores[:, 0] =  float("-inf")
-            # top_recs = torch.argsort(scores, dim=1, descending=True)[:, :10]
-            # df = pd.read_csv(rf"./dataset/{self.dataset}/item_popularity_labels.csv")
-            # label_map = dict(zip(df['item_id:token'], df['popularity_label']))
-            # item_ids = top_recs[:, 0].tolist()
-            # labels = [label_map.get(item_id, None) for item_id in item_ids]
-            # if popular == True:
-            #     bool_tensor = torch.tensor([int(label) == 1 for label in labels], dtype=torch.bool)
-            # else: 
-            #     bool_tensor = torch.tensor([int(label) == -1 for label in labels], dtype=torch.bool)
-
-            # new_tensor = self.sae_module_u.last_activations[bool_tensor]
-            # print((new_tensor).shape)
-            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
-            return
-        elif steered == False:
-            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, steered=False) 
-            # save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
-        elif steered:
-            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            save_batch_activations(self.sae_module_u.steered_activations, self.sae_module_u.hidden_dim, self.dataset, steered=True) 
-        else:
-            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-            # acts = self.sae_module_u.last_activations[:, 5140]
-            # save_batch_to_h5(users, acts, dataset=self.dataset)
-            test_items_emb = self.item_embedding.weight
-            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
-            # if self.fair:
-            # scores = self.FAIR(scores, p=0.7,alpha=0.01).to(self.device)
-            self.val_fvu_i += (self.sae_module_i.fvu)
-            self.val_fvu_u += (self.sae_module_u.fvu)
-            return scores
+        seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+        test_items_emb = self.item_embedding.weight
+        scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
+        # self.val_fvu_i += (self.sae_module_i.fvu)
+        self.val_fvu_u += (self.sae_module_u.fvu)
+        return scores
 
         
-
-
-import torch
-import numpy as np
-import json
-import torch
-import torch.nn as nn
-from recbole.utils import utils
-import pandas as pd
-import random
 
 class SAE(nn.Module):
     
@@ -157,24 +112,15 @@ class SAE(nn.Module):
         self.steer_dir = config['steer_dir'][self.index]
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
-        self.selected = None
-        self.dampen=False
-        self.ablate_list = None
-        self.ablate_index = None
         self.neuron_count = None
         self.unpopular_only = None
-        self.corr_file = None
         self.device = config["device"]
         self.dtype = torch.float32
         self.to(self.device)
         self.d_in = config['input_dim']
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
-        self.steered_activations=None
-        self.dampen_now = None
         self.d_min = None
-        self.activated_features = torch.zeros(config["train_batch_size"], self.hidden_dim)
-        self.analyze_neurons = False
         self.activation_count = torch.zeros(self.hidden_dim, device=config["device"])
         self.encoder = nn.Linear(self.d_in, self.hidden_dim, device=self.device,dtype = self.dtype)
         self.encoder.bias.data.zero_()
@@ -185,22 +131,7 @@ class SAE(nn.Module):
         self.previous_activate_latents = None
         self.epoch_idx=0
         self.new_epoch = False
-        self.d_pop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_pop.csv")["sd"].to_numpy()
-        self.d_unpop = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats_unpop.csv")["sd"].to_numpy()
-        # self.d = pd.read_csv(rf"./dataset/{self.dataset}/user/neuron_stats.csv")["sd"].to_numpy()
-
-
         self.item_activations = np.zeros(self.hidden_dim)
-        self.highest_activations = {
-            j: {
-                "values": torch.empty(0, dtype=torch.float32, device=self.device),
-                "low_values": torch.empty(0, dtype=torch.float32, device=self.device),
-                "items": torch.empty(0, dtype=torch.long, device=self.device),
-                "low_items": torch.empty(0, dtype=torch.long, device=self.device),
-                "recommendations": torch.empty((0, 10), dtype=torch.long, device=self.device)
-            }
-            for j in range(self.hidden_dim)
-        }
         self.steer_vec = None        # cached steering vector
         self._steer_ready = False    # flag
 
@@ -247,72 +178,23 @@ class SAE(nn.Module):
         and sets their activations in x to -10 before computing top-k.
         Returns a sparse tensor with only the top-k activations.
         """ 
-
-        if self.ablate_list is not None:
-            sds_unpop = torch.from_numpy(self.d_unpop[self.ablate_list]).to(self.device)
-            sds_pop = torch.from_numpy(self.d_pop[self.ablate_list]).to(self.device)
-            # sds = torch.from_numpy(self.d[self.ablate_list]).to(self.device)
-            if self.dampen_now:
-                x[:, self.ablate_list] -= sds_pop
-            elif self.dampen_now == False:
-                x[:, self.ablate_list] -=  sds_unpop
-
-        # print("bunu deyireme qaqa ", x.shape)
-        # x[:, 3400] = 0
-        if self.ablate_index is not None:
-            x[:, self.ablate_index] = 0
         topk_values, topk_indices = torch.topk(x, self.k, dim=1)
-        self.selected = topk_indices[0]
         flat_indices = topk_indices.view(-1)
 
-        # Count occurrences of each index
         counts = torch.bincount(flat_indices, minlength=self.hidden_dim)
 
-        # Update activation count
-        if self.ablate_index is None:
-            self.activation_count += counts.to(self.activation_count.device)
+        self.activation_count += counts.to(self.activation_count.device)
         self.activate_latents.update(topk_indices.cpu().numpy().flatten())
 
-        # Save epoch activations if needed
         if save_result:
             values_np = topk_values.detach().cpu().numpy()
             inds_np = topk_indices.detach().cpu().numpy()
-        # Build sparse output
+
         sparse_x = torch.zeros_like(x)
         sparse_x.scatter_(1, topk_indices, topk_values.to(self.dtype))
         return sparse_x
 
         
-
-    def update_topk_recommendations(self, predictions, current_sequences, k=10):
-        """
-        Update top-k recommendations for sequences in highest_activations.
-
-        Parameters:
-        - predictions: Tensor of shape [B, N], where B is batch size and N is the number of items.
-        - current_sequences: List of sequences (IDs) in the current batch.
-        - k: Number of top recommendations to save.
-        """
-        # Convert current_sequences to a list of lists for easy comparison
-        current_sequences_list = [seq.tolist() for seq in current_sequences]
-  
-        for neuron_idx, data in self.highest_activations.items():
-            for idx, stored_sequence in enumerate(data["sequences"]):
-                # Check if the stored sequence is in the current batch
-                if stored_sequence in current_sequences_list:
-                    # Find the index of the stored sequence in the current batch
-                    batch_idx = current_sequences_list.index(stored_sequence)
-                    
-                    # Get predictions for this sequence
-                    pred_scores = predictions[batch_idx].cpu().numpy()  # Convert to numpy for sorting
-                    
-                    # Find indices of the top-k scores
-                    topk_indices = np.argsort(pred_scores, axis=1)[:, -k:][:, ::-1]  # Add 1 to match item IDs
-     
-                    # Update the recommendations for this sequence
-                    data["recommendations"].append(topk_indices.tolist())
-    
-
     def _build_steering_vector(self, dataset):
         """Build the steering vector according to the specified direction.
 
@@ -323,7 +205,6 @@ class SAE(nn.Module):
         ``self.N`` neurons ranked by |*d*|.
         """
 
-        # ── 1. Load neurons ranked by effect‑size  ───────────────────────
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
@@ -424,7 +305,6 @@ class SAE(nn.Module):
             self.last_activations = pre_acts1
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
-            self.steered_activations = pre_acts1
             # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)
             # self.last_activations = torch.where(pre_acts == 0, torch.tensor(-0.1, dtype=pre_acts.dtype, device=pre_acts.device), pre_acts)

@@ -14,24 +14,14 @@ from recbole.quick_start import run, run_recbole, load_data_and_model
 from recbole.utils import (
     get_trainer,
     plot_ndcg_vs_fairness,
-    remove_sparse_users_items,
-    keep_random_users,
-    make_labels,
-    retain_last_x_days,
     create_atlas_visualizations,
-    analyze_activation_popularity,
-    top_neurons_by_effect_size,
-    plot_ablation_results
 )
 
 import matplotlib.pyplot as plt
 
 from experiments import ablate_neurons
-import csv
-import os
 from tune import tune
 from pathlib import Path
-from recbole.data import create_item_popularity_csv
 
 
 def fix_ndcg_columns(dataset: str) -> None:
@@ -114,8 +104,8 @@ if __name__ == "__main__":
     # exit()
     # print(top_neurons_by_effect_size(dataset="ml-1mm", n=1000))
     # exit()
-    create_atlas_visualizations(dataset="ml-1mm", subsample=5000, hidden_dim=8192)
-    exit()
+    # create_atlas_visualizations(dataset="ml-1mm", subsample=5000, hidden_dim=8192)
+    # exit()
     # retain_last_x_days(dataset="music", days=178)
     # exit()
     # keep_random_users(dataset="yoochoose-clicks", x=25000)
@@ -212,38 +202,38 @@ if __name__ == "__main__":
         exit()
     if args.train == True:
         if args.config_json is None:
-            # config_dict = {
-                # "base_path": "./saved/sasrec_beer.pth",
-                # "load": "./saved/sasrec_beer-32-52.pth",
-                # "sae_scale_size": [32, 96],
-                # "sae_k": [32, 52],
-                # "learning_rate": 1e-3,
-                # "alpha": [1.0, 1.0],
-                # "steer": [0, 0],
-                # "steer_dir": [0, 0],
-                # "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                #              "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
-                # # "train_neg_sample_args": None,
-                # "hidden_size": 64,
-                # "input_dim": 64
-                # }
-
-
             config_dict = {
-                "base_path": "./saved/lightgcn_beer.pth",
-                # "load": "./saved/LightGCN-Aug-11-2025_03-45-54.pth",
-                "sae_scale_size": [48, 48],
-                "sae_k": [16, 16],
+                "base_path": "./saved/sasrec_beer.pth",
+                "load": "./saved/sasrec_beer-32-52.pth",
+                "sae_scale_size": [32, 96],
+                "sae_k": [32, 52],
                 "learning_rate": 1e-3,
                 "alpha": [1.0, 1.0],
                 "steer": [0, 0],
                 "steer_dir": [0, 0],
                 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
                              "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
-                # "train_neg_sample_args": None,
-                "hidden_size": 128,
-                "input_dim": 128
+                "train_neg_sample_args": None,
+                "hidden_size": 64,
+                "input_dim": 64
                 }
+
+
+            # config_dict = {
+            #     "base_path": "./saved/lightgcn_beer.pth",
+            #     # "load": "./saved/LightGCN-Aug-11-2025_03-45-54.pth",
+            #     "sae_scale_size": [48, 48],
+            #     "sae_k": [16, 16],
+            #     "learning_rate": 1e-3,
+            #     "alpha": [1.0, 1.0],
+            #     "steer": [0, 0],
+            #     "steer_dir": [0, 0],
+            #     "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+            #                  "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+            #     # "train_neg_sample_args": None,
+            #     "hidden_size": 128,
+            #     "input_dim": 128
+            #     }
         if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
             config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
             config_dict["valid_metric"] = "SAE_LOSS_u"
