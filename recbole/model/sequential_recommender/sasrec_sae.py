@@ -21,7 +21,7 @@ import torch.nn as nn
 from recbole.utils import utils
 import pandas as pd
 import random
-
+from recbole.utils import save_batch_activations, make_items_popular, make_items_unpopular
 
 
 class SASRec_SAE(SASRec):
@@ -83,15 +83,29 @@ class SASRec_SAE(SASRec):
 
 
 
-    def full_sort_predict(self, interaction):
+    def full_sort_predict(self, interaction, popular=None, steered=None):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
-        seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
-        test_items_emb = self.item_embedding.weight
-        scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
-        # self.val_fvu_i += (self.sae_module_i.fvu)
-        self.val_fvu_u += (self.sae_module_u.fvu)
-        return scores
+        if popular is not None:
+            if popular == True:
+                item_seq = make_items_popular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
+            elif popular == False:
+                item_seq = make_items_unpopular(item_seq.shape[0], self.dataset, self.max_seq_length).to(self.device)
+            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            test_items_emb = self.item_embedding.weight
+            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
+            save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
+            return
+        else:
+            seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
+            test_items_emb = self.item_embedding.weight
+            scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
+            # self.val_fvu_i += (self.sae_module_i.fvu)
+            self.val_fvu_u += (self.sae_module_u.fvu)
+            return scores
+
+
+    
 
         
 
@@ -178,7 +192,6 @@ class SAE(nn.Module):
 
         counts = torch.bincount(flat_indices, minlength=self.hidden_dim)
 
-        self.activation_count += counts.to(self.activation_count.device)
         self.activate_latents.update(topk_indices.cpu().numpy().flatten())
 
         if save_result:

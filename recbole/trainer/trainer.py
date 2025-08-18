@@ -752,7 +752,7 @@ class Trainer(AbstractTrainer):
             if show_progress
             else data
         )
-        times = 200
+        times = 50
         cur = 0
         for batch_idx, batched_data in enumerate(iter_data):
             if cur >= times:
