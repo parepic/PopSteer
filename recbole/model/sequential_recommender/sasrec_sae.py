@@ -101,12 +101,11 @@ class SAE(nn.Module):
         super(SAE, self).__init__()
         self.side=side
         self.dataset = config["dataset"]
-        self.index = 0 if side == "item" else 1
-        self.k = config["sae_k"][self.index]
-        self.scale_size = config["sae_scale_size"][self.index]
-        self.alpha = config['alpha'][self.index]
-        self.beta = None
-        self.steer = config['steer'][self.index]
+        self.k = config["sae_k"]
+        self.scale_size = config["sae_scale_size"]
+        self.alpha_pop = config['alpha_pop']
+        self.alpha_unpop = config['alpha_unpop']
+        self.steer = config['steer']
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
         self.neuron_count = None
@@ -117,8 +116,7 @@ class SAE(nn.Module):
         self.d_in = config['input_dim']
         self.hidden_dim = self.d_in * self.scale_size
         self.N = self.hidden_dim
-        self.d_min = None
-        self.activation_count = torch.zeros(self.hidden_dim, device=config["device"])
+        self.d_min =  config['D']
         self.encoder = nn.Linear(self.d_in, self.hidden_dim, device=self.device,dtype = self.dtype)
         self.encoder.bias.data.zero_()
         self.W_dec = nn.Parameter(self.encoder.weight.data.clone())
@@ -240,7 +238,7 @@ class SAE(nn.Module):
 
         def normalise(x, pop: bool | None = None):
             """Linearly map *x* → [0, α] or [0, β] (pop vs. unpop)."""
-            thres = self.beta if pop else self.alpha
+            thres = self.alpha_pop if pop else self.alpha_unpop
             xmax = torch.max(x)
             return torch.full_like(x, thres / 2) if xmax == 0 else (x / xmax) * thres
 
@@ -290,7 +288,6 @@ class SAE(nn.Module):
             self.last_activations = pre_acts1
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)
-            # pre_acts = self.add_noise(pre_acts, std=self.beta)
             pre_acts = nn.functional.relu(pre_acts1)
             # self.last_activations = torch.where(pre_acts == 0, torch.tensor(-0.1, dtype=pre_acts.dtype, device=pre_acts.device), pre_acts)
             # self.last_activations = pre_acts1 - 1

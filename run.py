@@ -148,6 +148,11 @@ if __name__ == "__main__":
         "--dataset", "-d", type=str, default="ml-100k", help="name of datasets"
     )
 
+    parser.add_argument("--steer", action="store_true", help="Whether to steer PopSteer or not when testing")
+    parser.add_argument("--a_pop", default=None, type=float, help="alpha_pop hyperparameter value")
+    parser.add_argument("--a_unpop",default=None,  type=float, help="alpha_unpop hyperparameter value")
+    parser.add_argument("--D", default=None, type=float,  help="Cohens d hyperparameter")
+
     parser.add_argument("--config_files", type=str, default=None, help="config files")
     parser.add_argument(
         "--nproc", type=int, default=1, help="the number of process in this group"
@@ -246,26 +251,15 @@ if __name__ == "__main__":
     elif args.test == True:
         if args.config_json is None:
             config_dict = {
-                "alpha": [0.1, 3],
-                "steer": [0, 1],
-                "steer_dir": [0, 0],
-                "analyze": True,
-                "tail_ratio": 0.2,
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser", "EpochTime"],
+                "alpha_pop": args.a_pop,
+                "alpha_unpop": args.a_unpop,
+                "D": args.D,
+                "steer": args.steer
                 }
 
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
             model_file=args.path, dict=config_dict
         )
-        # model.sae_module_u.N=2048
-        # model.sae_module_u.alpha=3
-        model.sae_module_u.beta=3
-
-        if args.fair:
-            model.fair = True
-            model.a1 = 0.9
-            model.a2 = 0.1
         trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
         trainer.eval_collector.data_collect(train_data)
         if args.analyze:
