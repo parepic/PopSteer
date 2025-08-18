@@ -190,33 +190,26 @@ if __name__ == "__main__":
         ablate_neurons(args)
         exit()
     config_dict = dict()
-    if args.config_json:
-        import json, ast
-        try:
-            config_dict = json.loads(args.config_json)
-        except json.JSONDecodeError:
-            config_dict = ast.literal_eval(args.config_json)
 
     if args.tune == True:
         tune(args)
         exit()
     if args.train == True:
-        if args.config_json is None:
-            config_dict = {
-                "base_path": "./saved/sasrec_beer.pth",
-                "load": "./saved/sasrec_beer-32-52.pth",
-                "sae_scale_size": [32, 96],
-                "sae_k": [32, 52],
-                "learning_rate": 1e-3,
-                "alpha": [1.0, 1.0],
-                "steer": [0, 0],
-                "steer_dir": [0, 0],
-                "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
-                             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
-                "train_neg_sample_args": None,
-                "hidden_size": 64,
-                "input_dim": 64
-                }
+        # if args.config_json is None:
+            # config_dict = {
+            #     "base_path": "./saved/sasrec_beer.pth",
+            #     "load": "./saved/sasrec_beer-32-52.pth",
+            #     "sae_scale_size": [32, 96],
+            #     "sae_k": [32, 52],
+            #     "learning_rate": 1e-3,
+            #     "alpha": [1.0, 1.0],
+            #     "steer": [0, 0],
+            #     "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
+            #                  "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser"],
+            #     "train_neg_sample_args": None,
+            #     "hidden_size": 64,
+            #     "input_dim": 64
+            #     }
 
 
             # config_dict = {
@@ -234,16 +227,16 @@ if __name__ == "__main__":
             #     "hidden_size": 128,
             #     "input_dim": 128
             #     }
-        if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
-            config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
-            config_dict["valid_metric"] = "SAE_LOSS_u"
+        # if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
+        #     config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
+        #     config_dict["valid_metric"] = "SAE_LOSS_u"
+        config_dict = {"train_neg_sample_args": None}
         run(
             args.model,
             args.dataset,
             config_file_list=config_file_list,
             config_dict=config_dict,
             nproc=args.nproc,
-            world_size=args.world_size,
             ip=args.ip,
             port=args.port,
             group_offset=args.group_offset,

@@ -69,8 +69,6 @@ class SASRec_SAE(SASRec):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         seq_output = self.forward(item_seq, item_seq_len, train_mode=True)
-
-        # sae_loss_i = self.sae_module_i.fvu + self.sae_module_i.auxk_loss / 2
         sae_loss_u = self.sae_module_u.fvu + self.sae_module_u.auxk_loss / 2
         return sae_loss_u
 
@@ -109,7 +107,6 @@ class SAE(nn.Module):
         self.alpha = config['alpha'][self.index]
         self.beta = None
         self.steer = config['steer'][self.index]
-        self.steer_dir = config['steer_dir'][self.index]
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
         self.neuron_count = None
@@ -208,16 +205,10 @@ class SAE(nn.Module):
         pop_neurons, unpop_neurons = utils.get_extreme_correlations(
             rf"{self.side}/cohens_d.csv", dataset=dataset
         )
-
-        if self.steer_dir == -1:
-            combined = [(i, d, "unpop") for i, d in unpop_neurons]
-        elif self.steer_dir == 1:
-            combined = [(i, d, "pop") for i, d in pop_neurons]
-        else:  # self.steer_dir == 0  → both groups
-            combined = (
-                [(i, d, "pop") for i, d in pop_neurons]
-                + [(i, d, "unpop") for i, d in unpop_neurons]
-            )
+        combined = (
+            [(i, d, "pop") for i, d in pop_neurons]
+            + [(i, d, "unpop") for i, d in unpop_neurons]
+        )
 
         # Sort by |d|, descending
         combined_sorted = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
@@ -235,7 +226,7 @@ class SAE(nn.Module):
             self.steer_vec = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
             self._steer_ready = True
             return
-        # ── 3. Load per‑neuron statistics  ───────────────────────────────
+
         stats_unpop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_unpop.csv")
         stats_pop = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats_pop.csv")
         stats = pd.read_csv(rf"./dataset/{dataset}/{self.side}/neuron_stats.csv")
@@ -253,20 +244,14 @@ class SAE(nn.Module):
             xmax = torch.max(x)
             return torch.full_like(x, thres / 2) if xmax == 0 else (x / xmax) * thres
 
-        # ── 4. Compute group‑specific weights  ───────────────────────────
-        if self.steer_dir == 0:  # both groups
-            pop_mask = torch.tensor([g == "pop" for *_, g in top_neurons], device=self.device)
-            unpop_mask = ~pop_mask
+        pop_mask = torch.tensor([g == "pop" for *_, g in top_neurons], device=self.device)
+        unpop_mask = ~pop_mask
 
-            if pop_mask.any():
-                weights[pop_mask] = normalise(abs_cohens[pop_mask], pop=True)
-            if unpop_mask.any():
-                weights[unpop_mask] = normalise(abs_cohens[unpop_mask])
-        else:
-            # steer_dir is ±1 → single group
-            weights = normalise(abs_cohens)
+        if pop_mask.any():
+            weights[pop_mask] = normalise(abs_cohens[pop_mask], pop=True)
+        if unpop_mask.any():
+            weights[unpop_mask] = normalise(abs_cohens[unpop_mask])
 
-        # ── 5. Assemble the steering vector  ─────────────────────────────
         steer = torch.zeros(self.hidden_dim, device=self.device, dtype=self.dtype)
 
         for i, (neuron_idx, _, group) in enumerate(top_neurons):
