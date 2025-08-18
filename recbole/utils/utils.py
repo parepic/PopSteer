@@ -1543,25 +1543,25 @@ def save_cohens_d(dataset: str, n1=None, n2=None) -> None:
     The index (first column) is treated as the neuron identifier.
     """
     base = Path(f"./dataset/{dataset}/user")
+    base.mkdir(parents=True, exist_ok=True)  
+
     df1 = pd.read_csv(base / "neuron_stats_pop.csv", index_col=0)
     df2 = pd.read_csv(base / "neuron_stats_unpop.csv", index_col=0)
 
-    # Extract vectors for clarity
-    m1, s1= df1["mean"], df1["sd"],
-    m2, s2= df2["mean"], df2["sd"],
+    m1, s1, n1_col = df1["mean"], df1["sd"], df1["n"]
+    m2, s2, n2_col = df2["mean"], df2["sd"], df2["n"]
 
-    # Pooled standard deviation accounting for sample size
+    if n1 is None or n2 is None:
+        n1, n2 = n1_col, n2_col
+
     s_pooled = np.sqrt(((n1 - 1) * s1.pow(2) + (n2 - 1) * s2.pow(2)) / (n1 + n2 - 2))
 
-    # Cohen's d
     d = (m1 - m2) / s_pooled
 
-    # Assemble result DataFrame
     df_result = pd.DataFrame({"cohens_d": d})
     df_result.to_csv(base / "cohens_d.csv")
 
-    print("Cohen's d values saved to cohens_d.csv")
-
+    print("Cohen's d values saved to", base / "cohens_d.csv")
 
 
 

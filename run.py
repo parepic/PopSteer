@@ -263,32 +263,19 @@ if __name__ == "__main__":
         trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
         trainer.eval_collector.data_collect(train_data)
         if args.analyze:
-            if args.lightgcn:
-                trainer.synthetic_lightgcn(data=test_data, eval_data=True, model_file=args.path)
-                exit()
-            if not args.int:
-                trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
-            elif args.int:
-                trainer.analyze_neurons_int(test_data, model_file=args.path, eval_data=True)
+            # if not args.int:
+            trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
+            # elif args.int:
+            #     trainer.analyze_neurons_int(test_data, model_file=args.path, eval_data=True)
             exit()
         test_result = trainer.evaluate(
             test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
         )
         
         keys = [
-            'recall@10',
             'ndcg@10',
-            'hit@10',
             'giniindex@10',
-            'averagepopularity@10',
-            'itemcoverage@10',
             'itemcoveragen@10',
-            'ndcgtail@10',
-            'ndcghead@10',
-            'ndcgmid@10',
-            'ndcgtailuser@10',
-            'ndcgheaduser@10',
-            'ndcgmiduser@10',
             "epochtime"
             ]
 
@@ -298,9 +285,8 @@ if __name__ == "__main__":
         print(f"{'Metric':<{max_key_len}} | Value")
         print(f"{'-'*max_key_len}-|-------")
         print(test_result)
-        # print each metric with its dynamic value
         for key in keys:
-            value = test_result[key]             # get value from your OrderedDict
+            value = test_result[key]             
             print(f"{key:<{max_key_len}} | {value:>7.4f}")
 
 
