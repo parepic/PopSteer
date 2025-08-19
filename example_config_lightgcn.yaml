@@ -8,7 +8,7 @@ analyze: False
 sae_k: 44
 sae_scale_size: 64
 learning_rate:  1e-3
-valid_metric: "SAE_Loss_total"
+valid_metric: "NDCG"
 steer: 0
 "base_path": "./saved/sasrec_ml-1m.pth"
 # "load": "./saved/sasrec_beer-32-52.pth"
