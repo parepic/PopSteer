@@ -80,8 +80,8 @@ def tune(args):
             for c2 in change2:
                 trainer.model.sae_module_u.d_min = c3
                 trainer.model.sae_module_u.steer_dir = 0
-                trainer.model.sae_module_u.beta = c1
-                trainer.model.sae_module_u.alpha = c2
+                trainer.model.sae_module_u.alpha_pop = c1
+                trainer.model.sae_module_u.alpha_unpop = c2
                 trainer.model.sae_module_u._steer_ready = False
 
                 test_result = trainer.evaluate(
@@ -149,7 +149,7 @@ def tune(args):
         print(line)
 
     # --- Write selected results to CSV (with separate alphas) --
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_popsteer_{config["dataset"]}-results.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/LightGCN_popsteer_{config["dataset"]}-results.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

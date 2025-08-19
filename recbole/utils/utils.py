@@ -620,77 +620,140 @@ def compute_neuron_stats_by_row(
         dataset: str,
         side: str
     ) -> None:
-    labels_csv_path = rf"./dataset/{dataset}/{side}_popularity_labels.csv"
-    popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
-    unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
-    cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
-    Path(f"./dataset/{dataset}/{side}").mkdir(parents=True, exist_ok=True)
-    
+    """
+    Compute per-neuron stats (mean, sd) for:
+      • popular group (popularity_label ==  1)
+      • unpopular group (popularity_label == -1)
+      • ALL rows (regardless of label)
+    and save Cohen's d between popular vs unpopular.
+
+    Groups are defined by the CSV column `popularity_label` at *unique* id level:
+        1  -> popular
+       -1  -> unpopular
+        0  -> ignored for group stats
+
+    Inputs
+    ------
+    activations : torch.Tensor, shape (B, N)
+        Row-wise activations for B users/items and N neurons.
+    dataset : str
+        Dataset name (used to build file paths).
+    side : str
+        "user" or "item". Determines the id column name `{side}_id:token` and
+        which labels file to load: ./dataset/{dataset}/{side}_popularity_labels.csv
+
+    Outputs (CSV files)
+    -------------------
+    ./dataset/{dataset}/{side}/neuron_stats_pop.csv
+    ./dataset/{dataset}/{side}/neuron_stats_unpop.csv
+    ./dataset/{dataset}/{side}/neuron_stats.csv          (ALL rows)
+    ./dataset/{dataset}/{side}/cohens_d.csv
+    """
+    import numpy as np
+    import pandas as pd
+    import torch
+    from pathlib import Path
+
+    # ── 0. Validate inputs ─────────────────────────────────────────────────────
     if activations.ndim != 2:
         raise ValueError("`activations` must have shape (B, N)")
     B, N = activations.shape
 
+    device = activations.device
+    index_col = f"{side}_id:token"
+    labels_csv_path = f"./dataset/{dataset}/{side}_popularity_labels.csv"
 
-    label_ser = (
-        pd.read_csv(labels_csv_path, usecols=[rf"{side}_id:token", "popularity_label"])
-        .set_index(rf"{side}_id:token")["popularity_label"]
-    )
+    out_dir = Path(f"./dataset/{dataset}/{side}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    popular_out    = out_dir / "neuron_stats_pop.csv"
+    unpopular_out  = out_dir / "neuron_stats_unpop.csv"
+    all_out        = out_dir / "neuron_stats.csv"
+    cohens_d_out   = out_dir / "cohens_d.csv"
 
-    labels = torch.zeros(B, dtype=torch.int8)
-    known_idx = label_ser.index.intersection(range(B))
-    labels[known_idx] = torch.tensor(label_ser.loc[known_idx].values, dtype=torch.int8)
+    # ── 1. Load labels CSV and make it one-label-per-unique-id ─────────────────
+    # Expect the CSV to contain at least: `{side}_id:token`, `popularity_label`
+    lab_df = pd.read_csv(labels_csv_path, usecols=[index_col, "popularity_label"])
 
-    pop_mask  = labels ==  1
-    unpop_mask = labels == 0
+    # Make sure ids are numeric (0- or 1-based); drop non-numeric rows
+    lab_df[index_col] = pd.to_numeric(lab_df[index_col], errors="coerce")
+    lab_df = lab_df.dropna(subset=[index_col])
+    lab_df[index_col] = lab_df[index_col].astype(np.int64)
 
-    # Helper: stats for a boolean mask
+    # Deduplicate to exactly one label per id (labels should be constant per id)
+    lab_df = lab_df.drop_duplicates(subset=[index_col])
+
+    lab_ser = lab_df.set_index(index_col)["popularity_label"].astype("int8")
+
+    # Handle 1-based → 0-based ids if it looks like 1..B
+    if len(lab_ser) and lab_ser.index.min() == 1 and lab_ser.index.max() == B:
+        lab_ser.index = lab_ser.index - 1
+
+    # Keep only ids that map into rows [0, B-1]
+    lab_ser = lab_ser[(lab_ser.index >= 0) & (lab_ser.index < B)]
+
+    # ── 2. Build dense labels tensor aligned with activations rows ─────────────
+    labels = torch.zeros(B, dtype=torch.int8, device=device)
+    if len(lab_ser):
+        idx = torch.tensor(lab_ser.index.values, dtype=torch.long, device=device)
+        val = torch.tensor(lab_ser.values, dtype=torch.int8, device=device)
+        labels[idx] = val
+
+    # Popular / Unpopular masks (by your definition)
+    pop_mask    = labels ==  1
+    unpop_mask  = labels == -1
+
+    # ── 3. Compute group stats ─────────────────────────────────────────────────
     def _stats(mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, int]:
         n = int(mask.sum().item())
         if n:
-            subset = activations[mask]        # (n, N)
-            mean  = subset.mean(0)            # (N,)
+            subset = activations[mask]         # (n, N)
+            mean  = subset.mean(0)             # (N,)
             sd    = subset.std(0, unbiased=False)
         else:
-            mean = torch.zeros(N)
-            sd   = torch.zeros(N)
+            mean = activations.new_zeros(N)
+            sd   = activations.new_zeros(N)
         return mean, sd, n
 
-    # ── 3. Compute group stats ──────────────────────────────────────────────────
     mean_pop,  sd_pop,  n_pop  = _stats(pop_mask)
     mean_unp,  sd_unp,  n_unp  = _stats(unpop_mask)
 
-    # ── 4. Save per-group CSVs ──────────────────────────────────────────────────
-    def _to_csv(fname: str | Path, mean: torch.Tensor, sd: torch.Tensor):
+    # ── 4. Save per-group CSVs ─────────────────────────────────────────────────
+    def _to_cpu_np(t: torch.Tensor) -> np.ndarray:
+        return t.detach().float().cpu().numpy()
+
+    def _to_csv(fname: Path, mean: torch.Tensor, sd: torch.Tensor):
         pd.DataFrame({
-            "neuron": range(N),
-            "mean":   mean.tolist(),
-            "sd":     sd.tolist(),
+            "neuron": np.arange(N, dtype=np.int64),
+            "mean":   _to_cpu_np(mean),
+            "sd":     _to_cpu_np(sd),
         }).to_csv(fname, index=False)
 
     _to_csv(popular_out,   mean_pop, sd_pop)
     _to_csv(unpopular_out, mean_unp, sd_unp)
 
-    # ── 5. Cohen’s d per neuron ────────────────────────────────────────────────
-    # pooled SD: sqrt( ((n1-1)*s1² + (n2-1)*s2²) / (n1+n2−2) )
-    # handle zero-row or zero-variance cases gracefully
-    denom = max(n_pop + n_unp - 2, 1)                      # scalar, ≥1
-    pooled_var = ((n_pop - 1) * sd_pop.pow(2) +
-                  (n_unp - 1) * sd_unp.pow(2)) / denom
+    # ── 5. ALL-rows neuron stats (regardless of label) ─────────────────────────
+    mean_all = activations.mean(0)
+    sd_all   = activations.std(0, unbiased=False)
+    _to_csv(all_out, mean_all, sd_all)
+
+    # ── 6. Cohen's d per neuron (popular vs unpopular) ─────────────────────────
+    # pooled SD: sqrt( ((n1-1)*s1² + (n2-1)*s2²) / (n1+n2−2) ), guard edge cases
+    denom = max(n_pop + n_unp - 2, 1)  # >= 1 to avoid divide-by-zero
+    pooled_var = ((max(n_pop - 1, 0)) * sd_pop.pow(2) +
+                  (max(n_unp - 1, 0)) * sd_unp.pow(2)) / denom
     pooled_sd = torch.sqrt(pooled_var)
 
-    valid = (pooled_sd != 0) & (n_pop > 0) & (n_unp > 0)
-    cohens_d = torch.full((N,), float('nan'))
-    cohens_d[valid] = (mean_pop[valid] - mean_unp[valid]) / pooled_sd[valid]
+    cohens_d = activations.new_full((N,), float('nan'))
+    if n_pop > 0 and n_unp > 0:
+        valid = pooled_sd > 0
+        cohens_d[valid] = (mean_pop[valid] - mean_unp[valid]) / pooled_sd[valid]
 
     pd.DataFrame({
-        "neuron":   range(N),
-        "cohens_d": cohens_d.tolist(),
+        "neuron":   np.arange(N, dtype=np.int64),
+        "cohens_d": _to_cpu_np(cohens_d),
     }).to_csv(cohens_d_out, index=False)
 
-
-
-
-
+    
 
 def get_extreme_correlations(file_name: str, dataset=None):
     """

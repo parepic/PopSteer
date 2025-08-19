@@ -919,8 +919,8 @@ def create_user_label_csv(
     # ---------- item-level popularity -----------------------------------
     item_counts = df["item_id:token"].value_counts()
     n_items = len(item_counts)
-    top_n_items = math.ceil(0.2 * n_items)
-    bot_n_items = math.floor(0.2 * n_items)
+    top_n_items = math.ceil(0.5 * n_items)
+    bot_n_items = math.floor(0.5 * n_items)
 
     sorted_items = item_counts.sort_values()       # ascending
     bottom_items = set(sorted_items.index[:bot_n_items])
@@ -978,8 +978,8 @@ def create_user_label_csv(
     )
 
     n_users_act = len(inter_counts)
-    top_act = math.ceil(0.2 * n_users_act)
-    bot_act = math.floor(0.2 * n_users_act)
+    top_act = math.ceil(0.1 * n_users_act)
+    bot_act = math.floor(0.1 * n_users_act)
 
     sorted_users_act = inter_counts.sort_values()        # ascending
     bottom_users_act = set(sorted_users_act.index[:bot_act])
