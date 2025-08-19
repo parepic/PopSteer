@@ -323,7 +323,7 @@ class SAE(nn.Module):
             pre_acts1 = self.encoder(sae_in)
             # if self.analyze == True:
             #     if self.side == "item":
-            #         compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
+            compute_weighted_neuron_stats_by_row_item(activations=pre_acts1, dataset=self.dataset, side=self.side)
             self.last_activations = pre_acts1
             if self.steer == True and self.N != 0:
                 pre_acts1 = self.dampen_neurons(pre_acts1, dataset=self.dataset)

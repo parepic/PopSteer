@@ -20,6 +20,7 @@ import random
 import pandas as pd
 import h5py
 from typing import Union, Tuple, Optional, Set
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -623,6 +624,8 @@ def compute_neuron_stats_by_row(
     popular_out = rf"./dataset/{dataset}/{side}/neuron_stats_pop.csv"
     unpopular_out = rf"./dataset/{dataset}/{side}/neuron_stats_unpop.csv"
     cohens_d_out = rf"./dataset/{dataset}/{side}/cohens_d.csv"
+    Path(f"./dataset/{dataset}/{side}").mkdir(parents=True, exist_ok=True)
+    
     if activations.ndim != 2:
         raise ValueError("`activations` must have shape (B, N)")
     B, N = activations.shape
