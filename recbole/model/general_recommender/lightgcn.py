@@ -56,8 +56,8 @@ class LightGCN(GeneralRecommender):
 
     def __init__(self, config, dataset):
         super(LightGCN, self).__init__(config, dataset)
-        self.a1 = config["alpha"][0]
-        self.a2 = config["alpha"][1]
+        self.param1 = config["alpha_pop"]
+        self.param2 = config["alpha_unpop"]
         self.fair = False
         self.random = False
         self.ipr = False
@@ -232,17 +232,17 @@ class LightGCN(GeneralRecommender):
         scores = torch.matmul(u_embeddings, self.restore_item_e.transpose(0, 1))
         scores[:, 0] =  float("-inf")
         if self.fair:
-            scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
+            scores = self.FAIR(scores, p=self.param1,alpha=self.param2).to(self.device)
         elif self.random:
-            scores = self.random_reranker(scores=scores, top_k=self.a1)
+            scores = self.random_reranker(scores=scores, top_k=self.param1)
         elif self.ipr:
-            scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.a1)
+            scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.param1)
         # if self.pct:
         #     scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
         if self.min_reg:
-            scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.a1)
+            scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.param1)
         if self.duor:
-            scores = self.duor_boost_scores_from_user_csv(scores=scores, user_id=self.USER_ID, candidate_size=self.a1)
+            scores = self.duor_boost_scores_from_user_csv(scores=scores, user_id=self.USER_ID, candidate_size=self.param1)
 
         return scores.view(-1)
 
