@@ -5,12 +5,12 @@ input_dim: 128
 
 
 analyze: False
-sae_k: 44
+sae_k: 8
 sae_scale_size: 64
 learning_rate:  1e-3
 valid_metric: "NDCG@10"
 steer: 0
-"base_path": "./saved/sasrec_ml-1m.pth"
+"base_path": "./saved/lightgcn_ml-1m.pth"
 # "load": "./saved/sasrec_beer-32-52.pth"
 "learning_rate": 1e-3
 "alpha": 1.0
