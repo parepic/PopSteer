@@ -51,8 +51,11 @@ def tune(args):
     trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
     trainer.eval_collector.data_collect(train_data)
     # trainer.model.N = 140
-    change1 = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
-    change2 = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    # change1 = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    # change2 = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    change1 = [0, 0.25, 0.5, 0.75, 1.0]
+    change2 = [0, 0.25, 0.5, 0.75, 1.0]
+
     change3 = [0, 0.5, 1.0, 1.5, 2.0]
 
 
