@@ -235,7 +235,9 @@ if __name__ == "__main__":
         # if args.model in ["LightGCN_SAE", "SASRec_SAE"]:
         #     config_dict["metrics"].extend(["SAE_Loss_i", "SAE_Loss_u", "SAE_Loss_total"])
         #     config_dict["valid_metric"] = "SAE_LOSS_u"
-        config_dict = {"train_neg_sample_args": None}
+        config_dict = {}
+        if args.model in ["SASRec"]:
+            config_dict = {"train_neg_sample_args": None}
         run(
             args.model,
             args.dataset,

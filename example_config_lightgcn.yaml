@@ -18,6 +18,5 @@ steer: 0
 "metrics": ["Recall","NDCG","Hit", "Deep_LT_Coverage", "GiniIndex", "AveragePopularity", "ItemCoverageN","ItemCoverage", 'Deep_LT_Coverage',
             "NDCGTail", "NDCGHead", "NDCGMid", "NDCGPassive", "NDCGNeutral", "NDCGActive", "NDCGHeadUser", "NDCGMidUser", "NDCGTailUser",
             "SAE_Loss_u", "SAE_Loss_total"]
-"train_neg_sample_args": None,
 "input_dim": 128
 
