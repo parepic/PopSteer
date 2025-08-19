@@ -257,6 +257,7 @@ def load_data_and_model(model_file, dict=None):
     checkpoint = torch.load(model_file, weights_only=False, map_location=torch.device(device))
     config = checkpoint["config"]
     for key, value in dict.items():
+        print("key ", key)
         config[key] = value
     
     if(device == 'cpu'):

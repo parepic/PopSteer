@@ -83,7 +83,7 @@ class SASRec_SAE(SASRec):
 
 
 
-    def full_sort_predict(self, interaction, popular=None, steered=None):
+    def full_sort_predict(self, interaction, popular=None, save=False):
         item_seq = interaction[self.ITEM_SEQ]
         item_seq_len = interaction[self.ITEM_SEQ_LEN]
         if popular is not None:
@@ -97,11 +97,13 @@ class SASRec_SAE(SASRec):
             save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular) 
             return
         else:
+            if save:
+                save_batch_activations(self.sae_module_u.last_activations, self.sae_module_u.hidden_dim, self.dataset, popular, steered=False) 
             seq_output = self.forward(item_seq, item_seq_len, train_mode=False)
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))
-            # self.val_fvu_i += (self.sae_module_i.fvu)
             self.val_fvu_u += (self.sae_module_u.fvu)
+            
             return scores
 
 
@@ -120,6 +122,7 @@ class SAE(nn.Module):
         self.alpha_pop = config['alpha_pop']
         self.alpha_unpop = config['alpha_unpop']
         self.steer = config['steer']
+        print("ishle de! ", self.steer)
         self.analyze = config['analyze']
         self.fvu = torch.tensor(0.0)
         self.neuron_count = None
@@ -253,6 +256,7 @@ class SAE(nn.Module):
             """Linearly map *x* → [0, α] or [0, β] (pop vs. unpop)."""
             thres = self.alpha_pop if pop else self.alpha_unpop
             xmax = torch.max(x)
+            print("pop ve unpop ", self.alpha_unpop, " ", self.alpha_pop)
             return torch.full_like(x, thres / 2) if xmax == 0 else (x / xmax) * thres
 
         pop_mask = torch.tensor([g == "pop" for *_, g in top_neurons], device=self.device)

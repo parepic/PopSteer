@@ -247,45 +247,47 @@ if __name__ == "__main__":
             group_offset=args.group_offset,
         )
 
-    else:
+
+    elif args.test == True:
+        config_dict = {
+            "alpha_pop": args.a_pop,
+            "alpha_unpop": args.a_unpop,
+            "D": args.D,
+            "steer": True
+            }
         config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
             model_file=args.path, dict=config_dict
         )
         trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
         trainer.eval_collector.data_collect(train_data)
 
-        if args.test == True:
-            if args.config_json is None:
-                config_dict = {
-                    "alpha_pop": args.a_pop,
-                    "alpha_unpop": args.a_unpop,
-                    "D": args.D,
-                    "steer": args.steer
-                    }
+        test_result = trainer.evaluate(
+            test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
+        )
+        
+        keys = [
+            'ndcg@10',
+            'giniindex@10',
+            'itemcoveragen@10'
+            ]
 
-            test_result = trainer.evaluate(
-                test_data, model_file=args.path, load_best_model = False, show_progress=config["show_progress"]
-            )
-            
-            keys = [
-                'ndcg@10',
-                'giniindex@10',
-                'itemcoveragen@10',
-                "epochtime"
-                ]
-
-            max_key_len = max(len(k) for k in keys)
-            print(f"{'Metric':<{max_key_len}} | Value")
-            print(f"{'-'*max_key_len}-|-------")
-            print(test_result)
-            for key in keys:
-                value = test_result[key]             
-                print(f"{key:<{max_key_len}} | {value:>7.4f}")
+        max_key_len = max(len(k) for k in keys)
+        print(f"{'Metric':<{max_key_len}} | Value")
+        print(f"{'-'*max_key_len}-|-------")
+        print(test_result)
+        for key in keys:
+            value = test_result[key]             
+            print(f"{key:<{max_key_len}} | {value:>7.4f}")
 
 
-        elif args.analyze:
-            # if not args.int:
-            trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
-            # elif args.int:
-            #     trainer.analyze_neurons_int(test_data, model_file=args.path, eval_data=True)
-            exit()
+    elif args.analyze:
+        config, model, dataset, train_data, valid_data, test_data = load_data_and_model(
+            model_file=args.path
+        )
+        trainer = get_trainer(config["MODEL_TYPE"], config["model"])(config, model)
+        trainer.eval_collector.data_collect(train_data)
+
+        trainer.analyze_neurons(train_data, model_file=args.path, eval_data=False)
+        # elif args.int:
+        #     trainer.analyze_neurons_int(test_data, model_file=args.path, eval_data=True)
+        exit()

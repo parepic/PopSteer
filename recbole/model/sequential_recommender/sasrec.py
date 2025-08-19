@@ -48,8 +48,8 @@ class SASRec(SequentialRecommender):
             "inner_size"
         ]  # the dimensionality in feed-forward layer
         self.N = self.hidden_size
-        self.a1 = config["alpha_pop"]
-        self.a2 = config["alpha_unpop"]
+        self.param1 = config["alpha_pop"]
+        self.param2 = config["alpha_unpop"]
         self.fair = False
         self.random = False
         self.ipr = False
@@ -72,7 +72,7 @@ class SASRec(SequentialRecommender):
         self.item_embedding = nn.Embedding(
             self.n_items, self.hidden_size, padding_idx=0
         )
-        print("suka", self.device)
+
         self.dataset = config["dataset"]
         self.last_activations = None
         
@@ -184,17 +184,17 @@ class SASRec(SequentialRecommender):
             test_items_emb = self.item_embedding.weight
             scores = torch.matmul(seq_output, test_items_emb.transpose(0, 1))  # [B n_items]
             if self.fair:
-                scores = self.FAIR(scores, p=self.a1,alpha=self.a2).to(self.device)
+                scores = self.FAIR(scores, p=self.param1,alpha=self.param2).to(self.device)
             elif self.random:
-                scores = self.random_reranker(scores=scores, top_k=self.a1)
+                scores = self.random_reranker(scores=scores, top_k=self.param1)
             elif self.ipr:
-                scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.a1)
+                scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.param1)
             if self.pct:
-                scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
+                scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.param1, lambda_= self.param2)
             if self.min_reg:
-                scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.a1)
+                scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.param1)
             if self.duor:
-                scores = self.duor_boost_scores(scores=scores, profile_item_ids=item_seq, candidate_size=self.a1)
+                scores = self.duor_boost_scores(scores=scores, profile_item_ids=item_seq, candidate_size=self.param1)
             return scores
 
 
@@ -509,7 +509,6 @@ class SASRec(SequentialRecommender):
                     ids = ui[u][ui[u] != 0]
                     # print(ids, " sikim?")
                     if ids.size == 0:
-                        # print("suka blya")
                         frac[u] = target_ratio[1]  # fallback to global ratio
                     else:
                         valid = ids[ids < N]  # ignore out‑of‑range

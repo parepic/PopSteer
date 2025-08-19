@@ -1457,7 +1457,6 @@ def replace_with_mappings(sequences: torch.Tensor, popular: bool, dataset: str) 
 
 
 def save_batch_activations(bulk_data, neuron_count, dataset, popular=None, steered=None):
-    print(popular, " blya")
     if popular == True:
         file_path = rf"./dataset/{dataset}/neuron_activations_sasrecsae_final_pop.h5"
     elif popular == False:
@@ -1548,11 +1547,8 @@ def save_cohens_d(dataset: str, n1=None, n2=None) -> None:
     df1 = pd.read_csv(base / "neuron_stats_pop.csv", index_col=0)
     df2 = pd.read_csv(base / "neuron_stats_unpop.csv", index_col=0)
 
-    m1, s1, n1_col = df1["mean"], df1["sd"], df1["n"]
-    m2, s2, n2_col = df2["mean"], df2["sd"], df2["n"]
-
-    if n1 is None or n2 is None:
-        n1, n2 = n1_col, n2_col
+    m1, s1, n1_col = df1["mean"], df1["sd"], n1
+    m2, s2, n2_col = df2["mean"], df2["sd"], n2
 
     s_pooled = np.sqrt(((n1 - 1) * s1.pow(2) + (n2 - 1) * s2.pow(2)) / (n1 + n2 - 2))
 
