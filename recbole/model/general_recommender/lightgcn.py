@@ -237,8 +237,8 @@ class LightGCN(GeneralRecommender):
             scores = self.random_reranker(scores=scores, top_k=self.param1)
         elif self.ipr:
             scores = self.ipr_baseline(scores=scores, dataset = self.dataset, alpha=self.param1)
-        # if self.pct:
-        #     scores = self.pct_rerank(scores=scores, user_interest=item_seq, p=self.a1, lambda_= self.a2)
+        if self.pct:
+            scores = self.pct_rerank(scores=scores, user_interest=None, p=self.param1, lambda_= self.param2)
         if self.min_reg:
             scores = self.min_reg_algo(dataset=self.dataset, scores=scores, lambd=self.param1)
         if self.duor:

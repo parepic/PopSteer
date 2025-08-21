@@ -10,8 +10,8 @@ initializer_range: 0.02         # (float) The standard deviation for normal init
 loss_type: 'CE'                 # (str) The type of loss function. Range in ['BPR', 'CE'].
 
 analyze: False
-sae_k: 56
-sae_scale_size: 32
+sae_k: 44
+sae_scale_size: 64
 learning_rate:  1e-3
 valid_metric: "NDCG@10"
 steer: 0

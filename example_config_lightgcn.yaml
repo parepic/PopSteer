@@ -5,8 +5,8 @@ input_dim: 128
 
 
 analyze: False
-sae_k: 8
-sae_scale_size: 64
+sae_k: 16
+sae_scale_size: 32
 learning_rate:  1e-3
 valid_metric: "NDCG@10"
 steer: 0
