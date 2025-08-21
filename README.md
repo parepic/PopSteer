@@ -21,7 +21,7 @@ The repository already includes the datasets used in the paper. You can easily e
 
 ### 1 · Train PopSteer
 
-First, train a baseline recommender model that will act as the **teacher** for PopSteer. Later, train PopSteer pointing to the base recommender.   
+First, train a baseline recommender model that will act as the teacher for PopSteer. Later, train PopSteer pointing to the base recommender.   
 All hyperparameters are controlled via the YAML configuration file.
 
     python run.py --model=SASRec --dataset=ml-1m --config_files=example_config.yaml --train
@@ -74,6 +74,28 @@ python run.py --path=saved/sasrec_ml-1m-44.pth  --analyze
 | `--path`  | Path to the trained checkpoint to analyze (e.g., SASRec + SAE run).                          | `saved/sasrec_ml-1m-44.pth`    |
 | `--analyze` | Runs neuron analysis: generates synthetic profiles, records activations, computes metrics. | Presence-based flag            |
 
+
+### 4 · Tuning
+We provide code for tuning PopSteer and the baselines. To tune PopSteer, use:
+
+```
+python run.py --tune --path=saved/model-name.pth 
+```
+
+To tune the baselines, use one of the flags `--fair`, `--ipr`, `--duor`, `--pct`, `--min_reg`. For instance:
+
+```
+python run.py --tune --path=saved/model-name.pth --fair
+```
+
+
+### 4 · LightGCN experiments
+We also tested PopSteer when using LighGCN as a base recommender. For training PopSteer and LightGCN, use:
+
+`
+python run.py --model=LightGCN --dataset=ml-1m --config_files=example_config_lightgcn.yaml --train
+`
+Rest of the initial steps also apply to LightGCN version of PopSteer.
 
 
 
