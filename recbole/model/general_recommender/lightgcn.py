@@ -246,8 +246,10 @@ class LightGCN(GeneralRecommender):
 
         return scores.view(-1)
 
+
+
     def FAIR(self, scores, *, p: float = 0.9, alpha: float = 0.1,
-            L: int = 10000, K: int = 10):
+            L: int = 1000, K: int = 10):
         """
         Re-rank each batch row with FA*IR.
             p      – target minimum proportion of protected items
@@ -344,7 +346,6 @@ class LightGCN(GeneralRecommender):
 
         return np.array(sel, dtype=int)
     
-
 
 
     def random_reranker(

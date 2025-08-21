@@ -18,7 +18,7 @@ fieldnames = ["param1", "param2", "param3", "ndcg", "gini@10", "covn@10"]
 metric_keys = [
     'ndcg@10',
     'giniindex@10',
-    'itemcoverage@10'
+    'itemcoveragen@10'
     ]
 
 SHORT_NAMES = {
@@ -226,7 +226,7 @@ def tune_baseline(args):
     change2 = [0.0]
 
     if args.fair:
-        change1 = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+        change1 = [0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
         change2 = [0.01, 0.05, 0.1]
     if args.random:
         change1 = [15, 30, 50, 75, 100]
@@ -246,7 +246,7 @@ def tune_baseline(args):
 
 
     # --- prepare header printing ---
-    header_labels = ['alpha_u', 'alpha_i'] + [SHORT_NAMES[k] for k in metric_keys]
+    header_labels = ['param1', 'param2'] + [SHORT_NAMES[k] for k in metric_keys]
     header_line = " | ".join(header_labels)
     sep_line    = "-+-".join("-" * len(h) for h in header_labels)
     print(header_line)
@@ -270,8 +270,8 @@ def tune_baseline(args):
             trainer.model.restore_item_e = None
 
             current = {
-                'alpha_u': a_u,
-                'alpha_i': a_i,
+                'param1': a_u,
+                'param2': a_i,
                 **{k: test_result[k] for k in metric_keys}
             }
             rows_raw.append(current)
@@ -311,28 +311,17 @@ def tune_baseline(args):
         string = "duor"
 
     # --- Write selected results to CSV (unchanged) ---
-    csv_path = rf'./dataset/{config["dataset"]}/results/SASRec_{string}_{config["dataset"]}-results.csv'
+    csv_path = rf'./dataset/{config["dataset"]}/results/LightGCN_{string}_{config["dataset"]}-results.csv'
 
     with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for r in rows_raw:
             writer.writerow({
-                "alpha_u": r["alpha_u"],
-                "alpha_i": r["alpha_i"],
+                "param1": r["param1"],
+                "param2": r["param2"],
                 "ndcg": r["ndcg@10"],
-                "avgpop@10": r["averagepopularity@10"],
                 "gini@10": r["giniindex@10"],
-                "cov@10": r["itemcoverage@10"],
                 "covn@10": r["itemcoveragen@10"],
-                'ndcgtail@10': r["ndcgtail@10"],
-                'ndcgmid@10': r["ndcgmid@10"],
-                'ndcghead@10': r["ndcghead@10"],
-                'ndcgpassive@10': r["ndcgpassive@10"],
-                'ndcgneutral@10': r["ndcgneutral@10"],
-                'ndcgactive@10': r["ndcgactive@10"],
-                'ndcgtailuser@10': r["ndcgtailuser@10"],
-                'ndcgmiduser@10': r["ndcgmiduser@10"],
-                'ndcgheaduser@10': r["ndcgheaduser@10"],
                 })
     return rows_raw

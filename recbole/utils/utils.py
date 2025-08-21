@@ -903,14 +903,13 @@ def plot_ndcg_vs_fairness(
 
     # ------------------------------------------------------------------ paths
     files = {
-        "PopSteer":        rf"dataset/{dataset}/results/{model}_user_{dataset}-results.csv",
-        "Random-reranker": rf"dataset/{dataset}/results/{model}_random_{dataset}-resultss.csv",
+        "PopSteer":        rf"dataset/{dataset}/results/{model}_popsteer_{dataset}-results.csv",
+        "Random-reranker": rf"dataset/{dataset}/results/{model}_random_{dataset}-results.csv",
         "IPR":             rf"dataset/{dataset}/results/{model}_ipr_{dataset}-results.csv",
         "FAIR":            rf"dataset/{dataset}/results/{model}_fair_{dataset}-results.csv",
         "PCT":             rf"dataset/{dataset}/results/{model}_pct_{dataset}-results.csv",
-        "Min-reg":             rf"dataset/{dataset}/results/{model}_min_reg_{dataset}-results.csv",
-        "DUOR":             rf"dataset/{dataset}/results/{model}_duor_{dataset}-results.csv"
-
+        "Min-reg":         rf"dataset/{dataset}/results/{model}_min_reg_{dataset}-results.csv",
+        "DUOR":            rf"dataset/{dataset}/results/{model}_duor_{dataset}-results.csv"
     }
 
     # -------------------------------------------------------------- csv loader

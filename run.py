@@ -189,7 +189,7 @@ if __name__ == "__main__":
     )
     if args.plot:
         # plot_ablation_results(dataset="steam")
-        plot_ndcg_vs_fairness(dataset="ml-1mm", alpha_n=None, alpha_i=None, alpha_u=None, model="SASRec")
+        plot_ndcg_vs_fairness(dataset="ml-1m",  model="LightGCN")
         exit()
     if args.ablate:
         ablate_neurons(args)
