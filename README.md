@@ -21,7 +21,7 @@ The repository already includes the datasets used in the paper. You can easily e
 
 ### 1 · Train PopSteer
 
-First, train a baseline recommender model that will act as the **teacher** for PopSteer. Later, train PopSteer pointing to the base recommender.   
+First, train a baseline recommender model that will act as the teacher for PopSteer. Later, train PopSteer pointing to the base recommender.   
 All hyperparameters are controlled via the YAML configuration file.
 
     python run.py --model=SASRec --dataset=ml-1m --config_files=example_config.yaml --train
@@ -73,6 +73,7 @@ python run.py --path=saved/sasrec_ml-1m-44.pth  --analyze
 |-----------|----------------------------------------------------------------------------------------------|--------------------------------|
 | `--path`  | Path to the trained checkpoint to analyze (e.g., SASRec + SAE run).                          | `saved/sasrec_ml-1m-44.pth`    |
 | `--analyze` | Runs neuron analysis: generates synthetic profiles, records activations, computes metrics. | Presence-based flag            |
+
 
 
 
