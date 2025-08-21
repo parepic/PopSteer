@@ -498,7 +498,7 @@ class LightGCN(GeneralRecommender):
         top_k: int = 10,
         policy: Literal["Equal", "AvgEqual"] = "Equal",
         p: float = 0.5,
-        personal: bool = True,
+        personal: bool = False,
         user_interest: Optional[Array] = None,
         lambda_: float = 0.7,
     ) -> Array:
