@@ -89,7 +89,7 @@ python run.py --tune --path=saved/model-name.pth --fair
 ```
 
 
-### 4 · LightGCN experiments
+### 5 · LightGCN experiments
 We also tested PopSteer when using LighGCN as a base recommender. For training PopSteer and LightGCN, use:
 
 `
@@ -98,10 +98,14 @@ python run.py --model=LightGCN --dataset=ml-1m --config_files=example_config_lig
 Rest of the initial steps also apply to LightGCN version of PopSteer.
 
 
+### 6 · LightGCN results
+
+The plots display the results of baselines and PopSteer in ml-1m dataset when using LightGCN as a base recommender.  
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/bc308077-eac8-4b88-a3fb-894ac34e5c1c" width="450"/>
+  <img src="https://github.com/user-attachments/assets/6fbf997e-bf0d-42c5-a2f6-2b1805bd9961" width="450"/>
+</p>
 
 
-
-
-
-
-
+As shown in the plots, PopSteer achieves comparable performance when LightGCN is used as the base recommender instead of SASRec. In this variant, biased neurons were identified using real user interaction data rather than synthetic profiles. Consequently, the improvements are slightly less pronounced than with SASRec, since real users do not typically represent the extreme ends of the popularity spectrum. Nevertheless, PopSteer remains competitive with, and in many cases outperforms, baseline methods—particularly at lower nDCG values
